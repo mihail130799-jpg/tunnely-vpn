@@ -52,6 +52,9 @@ class ConfigStore(context: Context) {
         }
     }
 
+    /** Cheap check without decrypting (for widget rendering). */
+    fun hasConfig(): Boolean = file.exists()
+
     fun serverName(): String? = metaFile.takeIf { it.exists() }?.readText()?.ifEmpty { null }
 
     fun clear() {

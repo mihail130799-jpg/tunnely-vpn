@@ -1,0 +1,125 @@
+# Android CI: tests, Mihomo core (Go → AAR), release APKs.
+#
+# Signed releases need repository secrets (Settings → Secrets and variables → Actions):
+#   TUNNELY_KEYSTORE_BASE64   base64 of secrets/android/tunnely-release.jks
+#   TUNNELY_KEYSTORE_PASSWORD
+#   TUNNELY_KEY_ALIAS         (tunnely)
+#   TUNNELY_KEY_PASSWORD
+# Without them the APKs are signed with a throwaway debug key and must not be
+# distributed (Android will refuse to update an installed Tunnely with them).
+name: Android
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  FLUTTER_VERSION: "3.47.8"
+  NDK_CORE: "27.2.12479018"
+  NDK_FLUTTER: "28.2.13676358"
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: vpn_core/go.mod
+          cache-dependency-path: vpn_core/go.sum
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Dart analyze and tests
+        working-directory: vpn_client
+        run: |
+          flutter pub get
+          flutter analyze
+          flutter test
+
+      # Validates the configs the Dart tests just generated with the real Mihomo parser.
+      - name: Go vet and tests
+        working-directory: vpn_core
+        run: |
+          go vet ./...
+          go test ./tunnelycore/
+
+  apk:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "21"
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: vpn_core/go.mod
+          cache-dependency-path: vpn_core/go.sum
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: ${{ env.FLUTTER_VERSION }}
+          cache: true
+
+      - name: Install Android NDKs
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" --install \
+            "ndk;${NDK_CORE}" "ndk;${NDK_FLUTTER}" > /dev/null
+
+      - name: Build Mihomo core (AAR)
+        run: ANDROID_NDK_HOME="$ANDROID_HOME/ndk/$NDK_CORE" bash scripts/build_core_android.sh
+
+      - name: Prepare signing key
+        env:
+          KEYSTORE_BASE64: ${{ secrets.TUNNELY_KEYSTORE_BASE64 }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > "$RUNNER_TEMP/tunnely-release.jks"
+            echo "TUNNELY_KEYSTORE_PATH=$RUNNER_TEMP/tunnely-release.jks" >> "$GITHUB_ENV"
+            echo "SIGNED=release" >> "$GITHUB_ENV"
+          else
+            echo "::warning::No signing secrets: APKs are debug-signed and must not be distributed."
+            echo "SIGNED=debug-signed" >> "$GITHUB_ENV"
+          fi
+
+      - name: Build release APKs
+        working-directory: vpn_client
+        env:
+          TUNNELY_KEYSTORE_PASSWORD: ${{ secrets.TUNNELY_KEYSTORE_PASSWORD }}
+          TUNNELY_KEY_ALIAS: ${{ secrets.TUNNELY_KEY_ALIAS }}
+          TUNNELY_KEY_PASSWORD: ${{ secrets.TUNNELY_KEY_PASSWORD }}
+        run: flutter build apk --release --split-per-abi
+
+      - name: Collect artifacts
+        run: |
+          VERSION=$(grep -m1 '^version:' vpn_client/pubspec.yaml | awk '{print $2}' | cut -d+ -f1)
+          mkdir -p out
+          for abi in arm64-v8a armeabi-v7a x86_64; do
+            cp "vpn_client/build/app/outputs/flutter-apk/app-$abi-release.apk" "out/Tunnely-$VERSION-$abi.apk"
+          done
+          (cd out && sha256sum *.apk > SHA256SUMS.txt && cat SHA256SUMS.txt)
+          "$ANDROID_HOME/build-tools/$(ls "$ANDROID_HOME/build-tools" | sort -V | tail -1)/apksigner" \
+            verify --print-certs out/Tunnely-$VERSION-arm64-v8a.apk | grep SHA-256
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: tunnely-${{ env.VERSION }}-${{ env.SIGNED }}
+          path: out/
+          retention-days: 30

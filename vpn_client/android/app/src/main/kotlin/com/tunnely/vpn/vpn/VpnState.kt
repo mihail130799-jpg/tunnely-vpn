@@ -30,12 +30,23 @@ object VpnState {
     private val listeners = CopyOnWriteArraySet<(VpnStateSnapshot) -> Unit>()
 
     @Volatile
+    private var appContext: android.content.Context? = null
+
+    /** Lets state changes redraw the home-screen widget. Call from the service. */
+    fun attach(context: android.content.Context) {
+        appContext = context.applicationContext
+    }
+
+    @Volatile
     var current = VpnStateSnapshot(TunnelStatus.DISCONNECTED)
         private set
 
     fun update(next: VpnStateSnapshot) {
         current = next
-        main.post { listeners.forEach { it(next) } }
+        main.post {
+            listeners.forEach { it(next) }
+            appContext?.let { TunnelWidget.refresh(it, next) }
+        }
     }
 
     fun addListener(l: (VpnStateSnapshot) -> Unit) {

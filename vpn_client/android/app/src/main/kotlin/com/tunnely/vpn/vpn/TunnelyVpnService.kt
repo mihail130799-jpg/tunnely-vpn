@@ -33,6 +33,11 @@ class TunnelyVpnService : VpnService() {
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
     private var currentNetwork: Network? = null
 
+    override fun onCreate() {
+        super.onCreate()
+        VpnState.attach(this)
+    }
+
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         when (intent?.action) {
             ACTION_STOP -> worker.execute { stopTunnel(userRequested = true) }

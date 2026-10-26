@@ -9,7 +9,7 @@ import '../theme/app_theme.dart';
 /// Public source code location required by GPL-3.0. Must be set before the
 /// app is distributed (see PROJECT_STATUS.md, "Перед выпуском").
 const String? sourceCodeUrl = null;
-const appVersion = '0.1.0';
+const appVersion = '0.1.1';
 
 final _coreVersionProvider = FutureProvider<String>((ref) async {
   try {

@@ -34,11 +34,17 @@
 .\scripts\build_android.ps1 -SkipTests
 .\scripts\build_android.ps1 -RebuildCore   # пересобрать ядро Mihomo (Go → AAR) перед сборкой
 ```
-Версия берётся из `vpn_client/pubspec.yaml` (`version: 0.1.0+1`; число после `+` нужно увеличивать при каждом выпуске — Android сравнивает его при обновлении).
+Версия берётся из `vpn_client/pubspec.yaml` (`version: 0.1.1+2`; число после `+` нужно увеличивать при каждом выпуске — Android сравнивает его при обновлении). При разбиении по ABI Flutter добавляет к нему 1000×ABI: armeabi-v7a → 1002, arm64-v8a → 2002, x86_64 → 4002.
+
+## Автосборка в GitHub Actions
+`.github/workflows/android.yml`: тесты Dart и Go → сборка ядра (`scripts/build_core_android.sh`) → release APK → артефакт с SHA256SUMS.
+Для подписанных сборок добавьте секреты репозитория `TUNNELY_KEYSTORE_BASE64` (base64 файла `.jks`), `TUNNELY_KEYSTORE_PASSWORD`, `TUNNELY_KEY_ALIAS`, `TUNNELY_KEY_PASSWORD`. Без них APK подписываются отладочным ключом — раздавать их нельзя.
+**Статус:** workflow не запускался (репозиторий не опубликован).
 
 Скрипт проверяет подпись каждого APK (`apksigner verify`) и пишет `SHA256SUMS.txt`.
 
-## Что проверено (2026-10-26, эмулятор Android 15 x86_64, release-сборка)
+## Что проверено (эмулятор Android 15 x86_64, release-сборки 0.1.0 и 0.1.1)
 - Установка чистая и обновлением поверх (данные сохраняются).
 - Импорт подписки владельца, подключение к серверам Finland (`loc=FI`) и Frankfurt (`loc=DE`), DNS через туннель.
+- Виджет, плитка, смена Wi-Fi ↔ мобильная сеть, импорт из файла, счётчики скорости — см. TESTING.md.
 - На физическом телефоне сборка **ещё не проверялась**.

@@ -9,4 +9,13 @@
     <string name="vpn_error_permission">Нет разрешения на VPN. Откройте Tunnely и разрешите подключение</string>
     <string name="vpn_error_start">Не удалось подключиться: %1$s</string>
     <string name="tile_label">Tunnely</string>
+    <string name="widget_description">Включение и выключение VPN одним нажатием</string>
+    <string name="widget_connected">Защищено</string>
+    <string name="widget_connecting">Подключение…</string>
+    <string name="widget_disconnecting">Отключение…</string>
+    <string name="widget_disconnected">Отключено</string>
+    <string name="widget_error">Ошибка</string>
+    <string name="widget_no_server">Откройте Tunnely и добавьте ключ</string>
+    <string name="widget_action_on">Включить</string>
+    <string name="widget_action_off">Выключить</string>
 </resources>
