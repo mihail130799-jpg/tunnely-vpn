@@ -176,6 +176,9 @@ class AppController extends Notifier<AppState> {
   void _onVpnState(VpnStateInfo s) {
     final prev = state.vpn.status;
     state = state.copyWith(vpn: s, traffic: s.status == VpnStatus.connected ? null : TrafficInfo.zero);
+    if (s.status == VpnStatus.connected && prev != VpnStatus.connected) {
+      unawaited(checkActiveServer());
+    }
     if (s.status == VpnStatus.connected) {
       _trafficTimer ??= Timer.periodic(const Duration(seconds: 1), (_) => _pollTraffic());
     } else {
@@ -406,7 +409,32 @@ class AppController extends Notifier<AppState> {
       final cfg = _activeConfig;
       final name = id == null ? autoGroup : cfg?.proxyNames[id];
       final switched = name != null && await _vpn.select(selectorGroup, name);
-      if (!switched) await connect(); // server not in the running config: reapply
+      if (!switched) {
+        await connect(); // server not in the running config: reapply
+      } else {
+        await checkActiveServer();
+      }
+    }
+  }
+
+  /// Measures the active server through the running core. The tunnel can be up
+  /// while the server rejects us (wrong keys, server down), so tell the user.
+  Future<void> checkActiveServer() async {
+    final cfg = _activeConfig;
+    if (cfg == null || state.vpn.status != VpnStatus.connected) return;
+    final id = state.selectedId;
+    final name = id == null ? autoGroup : cfg.proxyNames[id];
+    if (name == null) return;
+    final ms = await _vpn.delay(name, latencyTestUrl, timeoutMs: 6000);
+    if (id != null) state = state.copyWith(latency: {...state.latency, id: ms});
+    if (ms < 0 && state.vpn.status == VpnStatus.connected && state.selectedId == id) {
+      final who = id == null ? 'Ни один сервер' : 'Сервер «${state.selected?.name ?? ''}»';
+      _say(
+        id == null
+            ? '$who не отвечает. Проверьте подписку или интернет'
+            : '$who не отвечает. Выберите другой сервер или «Авто»',
+        error: true,
+      );
     }
   }
 

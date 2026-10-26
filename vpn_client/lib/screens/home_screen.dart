@@ -102,7 +102,10 @@ class _TopBar extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final tc = context.tc;
+    final sel = state.selected;
+    final deadServer = sel != null && state.latency[sel.id] == -1;
     final (label, dot) = switch (state.vpn.status) {
+      VpnStatus.connected when deadServer => ('Сервер не отвечает', Brand.warning),
       VpnStatus.connected => ('Защищено', Brand.success),
       VpnStatus.connecting => ('Подключение…', Brand.cyan),
       VpnStatus.reconnecting => ('Переподключение…', Brand.cyan),

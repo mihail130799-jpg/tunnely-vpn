@@ -25,6 +25,7 @@ class FakeVpn implements VpnPlatform {
   int stops = 0;
   final selects = <(String, String)>[];
   VpnStateInfo current = VpnStateInfo.disconnected;
+  int delayResult = 42;
 
   void emit(VpnStateInfo s) {
     current = s;
@@ -48,7 +49,7 @@ class FakeVpn implements VpnPlatform {
   @override
   Future<TrafficInfo> traffic() async => const TrafficInfo(up: 1, down: 2);
   @override
-  Future<int> delay(String proxyName, String url, {int timeoutMs = 5000}) async => 42;
+  Future<int> delay(String proxyName, String url, {int timeoutMs = 5000}) async => delayResult;
   @override
   Future<bool> select(String group, String name) async {
     selects.add((group, name));
@@ -275,6 +276,39 @@ void main() {
     await ctrl().updateSettings(const AppSettings(routing: RoutingMode.global));
     expect(vpn.startedConfig, isNotNull);
     expect(storage.settings.routing, RoutingMode.global);
+  });
+
+  test('adding a subscription keeps the current selection', () async {
+    await ctrl().importText('vless://$_uuid@local.example.com:8443?security=reality&pbk=K#Local');
+    final local = st().selectedId;
+    expect(local, isNotNull);
+    await ctrl().addSubscription('https://sub.example.com/abc');
+    expect(st().selectedId, local);
+    await ctrl().refreshSubscription(st().subscriptions.single.id);
+    expect(st().selectedId, local);
+  });
+
+  test('dead server after switching is reported', () async {
+    await ctrl().importText('$_vless\n$_trojan');
+    await ctrl().connect();
+    vpn.emit(VpnStateInfo(VpnStatus.connected, connectedSince: DateTime.now()));
+    await Future<void>.delayed(Duration.zero);
+    vpn.delayResult = -1;
+    final trojan = st().servers.firstWhere((s) => s.type == 'trojan');
+    await ctrl().select(trojan.id);
+    expect(st().message!.isError, true);
+    expect(st().message!.text, contains('не отвечает'));
+    expect(st().latency[trojan.id], -1);
+  });
+
+  test('healthy server after connect is not reported', () async {
+    await ctrl().importText(_vless);
+    await ctrl().connect();
+    final before = st().message?.id;
+    vpn.emit(VpnStateInfo(VpnStatus.connected, connectedSince: DateTime.now()));
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    expect(st().message?.id, before);
+    expect(st().latency.values.single, 42);
   });
 
   test('stableId is deterministic', () {
