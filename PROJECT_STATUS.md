@@ -3,7 +3,8 @@
 > При перезапуске Claude Code: сначала прочитать этот файл и PRODUCT_DECISIONS.md.
 
 ## Текущий этап
-Этап 3/4 — дизайн. Бренд согласован (Tunnely VPN, логотип владельца, сине-белая палитра, без слогана). Интерфейс Happ изучен: docs/HAPP_ANALYSIS.md. Утверждена концепция C «Свет в туннеле» (DESIGN_SYSTEM.md). Ожидается решение по интенсивности анимаций, затем этап 5 — функциональность.
+Этап 5 — согласование функций (вопросы заданы владельцу). Бренд, дизайн (концепция C, DESIGN_SYSTEM.md), ядро Mihomo и лицензия GPL-3.0 согласованы. Ядро собрано в AAR.
+Далее технически: Android VpnService + MethodChannel, Dart-парсер ссылок и генератор YAML Mihomo, экраны по концепции C.
 
 Установлено 2026-10-26: Flutter stable (D:\dev\flutter, первичная инициализация), Go 1.27.0. Git не был в PATH текущей сессии — в setup_windows.ps1 добавлять PATH явно.
 
@@ -35,7 +36,9 @@
 - Проверено окружение, установлены Git, Flutter, Go.
 - Бренд, темы и концепция C согласованы; DESIGN_SYSTEM.md написан.
 - Создан Flutter-проект `vpn_client/` (package `tunnely`, org `com.tunnely`, Android + iOS), git-репозиторий (ветка main).
-- Владелец выбрал VPN-ядро Mihomo (docs/adr/0002-vpn-core-mihomo.md); ждём подтверждения последствий GPL-3.0. Анимация: выразительная.
+- Ядро Mihomo v1.19.33 подтверждено, лицензия проекта GPL-3.0 (LICENSE). Анимация: выразительная. Android-референс: Husi (docs/HUSI_ANALYSIS.md).
+- `vpn_core/tunnelycore` — Go-обёртка Mihomo (Start/Stop/Validate/TrafficNow/Delay/SelectProxy/NowProxy, Protector для VpnService.protect, LogSink). `go vet` чистый.
+- **Собран `tunnelycore.aar`** (gomobile, arm64 / armv7 / x86_64, minSdk 24, ~80 МБ на все ABI) скриптом `scripts/build_core_android.ps1`. Запуск ядра на устройстве ещё НЕ проверялся.
 
 ## Результаты тестирования
 Пока нет.

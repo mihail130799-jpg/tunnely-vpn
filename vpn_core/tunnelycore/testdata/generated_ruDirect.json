@@ -1,0 +1,215 @@
+{
+  "mode": "rule",
+  "log-level": "warning",
+  "ipv6": true,
+  "allow-lan": false,
+  "unified-delay": true,
+  "tcp-concurrent": true,
+  "find-process-mode": "off",
+  "geo-auto-update": false,
+  "keep-alive-interval": 30,
+  "profile": {
+    "store-selected": false,
+    "store-fake-ip": false
+  },
+  "tun": {
+    "enable": true,
+    "stack": "gvisor",
+    "file-descriptor": 0,
+    "inet4-address": [
+      "172.19.0.1/30"
+    ],
+    "inet6-address": [
+      "fdfe:dcba:9876::1/126"
+    ],
+    "mtu": 9000,
+    "auto-route": false,
+    "auto-detect-interface": false,
+    "dns-hijack": [
+      "any:53",
+      "tcp://any:53"
+    ]
+  },
+  "dns": {
+    "enable": true,
+    "ipv6": true,
+    "enhanced-mode": "fake-ip",
+    "fake-ip-range": "198.18.0.1/16",
+    "fake-ip-filter": [
+      "*.lan",
+      "*.local",
+      "+.msftconnecttest.com",
+      "+.msftncsi.com",
+      "time.*.com",
+      "+.ntp.org"
+    ],
+    "default-nameserver": [
+      "77.88.8.8",
+      "1.1.1.1"
+    ],
+    "proxy-server-nameserver": [
+      "https://77.88.8.8/dns-query",
+      "https://1.1.1.1/dns-query"
+    ],
+    "nameserver": [
+      "https://1.1.1.1/dns-query",
+      "https://8.8.8.8/dns-query"
+    ],
+    "nameserver-policy": {
+      "rule-set:ru-domains": [
+        "https://77.88.8.8/dns-query",
+        "https://77.88.8.1/dns-query"
+      ]
+    }
+  },
+  "proxies": [
+    {
+      "name": "DE",
+      "type": "vless",
+      "server": "a.example.com",
+      "port": 443,
+      "uuid": "11111111-2222-3333-4444-555555555555",
+      "udp": true,
+      "flow": "xtls-rprx-vision",
+      "tls": true,
+      "servername": "www.microsoft.com",
+      "client-fingerprint": "chrome",
+      "reality-opts": {
+        "public-key": "SGVsbG9Xb3JsZEhlbGxvV29ybGRIZWxsb1dvcmxkMTI",
+        "short-id": "6ba8"
+      }
+    },
+    {
+      "name": "XH",
+      "type": "vless",
+      "server": "b.example.com",
+      "port": 443,
+      "uuid": "11111111-2222-3333-4444-555555555555",
+      "udp": true,
+      "network": "xhttp",
+      "xhttp-opts": {
+        "path": "/x"
+      },
+      "tls": true,
+      "servername": "b.example.com"
+    },
+    {
+      "name": "WS",
+      "type": "vless",
+      "server": "c.example.com",
+      "port": 443,
+      "uuid": "11111111-2222-3333-4444-555555555555",
+      "udp": true,
+      "network": "ws",
+      "ws-opts": {
+        "path": "/ws",
+        "headers": {
+          "Host": "c.example.com"
+        }
+      },
+      "tls": true
+    },
+    {
+      "name": "TR",
+      "type": "trojan",
+      "server": "d.example.com",
+      "port": 443,
+      "password": "pw",
+      "udp": true,
+      "sni": "d.example.com"
+    },
+    {
+      "name": "SS",
+      "type": "ss",
+      "server": "e.example.com",
+      "port": 8388,
+      "cipher": "aes-256-gcm",
+      "password": "pw",
+      "udp": true
+    },
+    {
+      "name": "HY2",
+      "type": "hysteria2",
+      "server": "f.example.com",
+      "port": 443,
+      "password": "pw",
+      "udp": true,
+      "sni": "f.example.com"
+    },
+    {
+      "name": "TUIC",
+      "type": "tuic",
+      "server": "g.example.com",
+      "port": 443,
+      "uuid": "11111111-2222-3333-4444-555555555555",
+      "password": "pw",
+      "udp": true,
+      "alpn": [
+        "h3"
+      ],
+      "congestion-controller": "bbr"
+    }
+  ],
+  "proxy-groups": [
+    {
+      "name": "PROXY",
+      "type": "select",
+      "proxies": [
+        "DE",
+        "Авто",
+        "XH",
+        "WS",
+        "TR",
+        "SS",
+        "HY2",
+        "TUIC"
+      ]
+    },
+    {
+      "name": "Авто",
+      "type": "url-test",
+      "proxies": [
+        "DE",
+        "XH",
+        "WS",
+        "TR",
+        "SS",
+        "HY2",
+        "TUIC"
+      ],
+      "url": "https://www.gstatic.com/generate_204",
+      "interval": 300,
+      "tolerance": 50,
+      "lazy": false
+    }
+  ],
+  "rule-providers": {
+    "ru-domains": {
+      "type": "file",
+      "behavior": "domain",
+      "format": "mrs",
+      "path": "./ruleset/ru-domains.mrs"
+    },
+    "ru-ips": {
+      "type": "file",
+      "behavior": "ipcidr",
+      "format": "mrs",
+      "path": "./ruleset/ru-ips.mrs"
+    }
+  },
+  "rules": [
+    "IP-CIDR,10.0.0.0/8,DIRECT,no-resolve",
+    "IP-CIDR,172.16.0.0/12,DIRECT,no-resolve",
+    "IP-CIDR,192.168.0.0/16,DIRECT,no-resolve",
+    "IP-CIDR,169.254.0.0/16,DIRECT,no-resolve",
+    "IP-CIDR6,fe80::/10,DIRECT,no-resolve",
+    "IP-CIDR6,fc00::/7,DIRECT,no-resolve",
+    "DOMAIN-SUFFIX,local,DIRECT",
+    "DOMAIN-SUFFIX,ru,DIRECT",
+    "DOMAIN-SUFFIX,xn--p1ai,DIRECT",
+    "DOMAIN-SUFFIX,su,DIRECT",
+    "RULE-SET,ru-domains,DIRECT",
+    "RULE-SET,ru-ips,DIRECT,no-resolve",
+    "MATCH,PROXY"
+  ]
+}
