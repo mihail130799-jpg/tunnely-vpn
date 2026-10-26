@@ -68,10 +68,13 @@
 - Apple Developer Program не оплачен → NetworkExtension и установка на iPhone недоступны.
 - Нет физического Android-устройства → только эмулятор.
 
+## Решение 2026-10-27
+Работаем только над Android; iOS отложена до решения владельца по Apple Developer (см. PRODUCT_DECISIONS №15).
+
 ## Следующие действия
 1. Владельцу: поставить `releases/0.1.0/Tunnely-0.1.0-arm64-v8a.apk` на свой телефон и проверить (ANDROID_BUILD.md). Сделать резервную копию ключа подписи `secrets/android/`.
 2. ✅ Release-сборка (2026-10-26): постоянный ключ, split по ABI, `scripts/build_android.ps1`, `releases/0.1.0/` + SHA256SUMS.
 3. Виджет рабочего стола; проверка трафика/скорости, смены сети, плитки.
 4. Скрипты `setup_windows.ps1`, `test_project.ps1`, CI (GitHub Actions).
-5. iOS: Xcode-проект, PacketTunnel extension, сборка xcframework ядра на macOS CI.
+5. ~~iOS~~ — отложено по решению владельца.
 6. Документация: README, ARCHITECTURE, ANDROID_BUILD, IOS_BUILD, VPN_PROTOCOLS, SECURITY, TESTING, TROUBLESHOOTING, WINDOWS_SETUP.
