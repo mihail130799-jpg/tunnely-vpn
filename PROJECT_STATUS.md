@@ -35,7 +35,7 @@
 - Проверено окружение, установлены Git, Flutter, Go.
 - Бренд, темы и концепция C согласованы; DESIGN_SYSTEM.md написан.
 - Создан Flutter-проект `vpn_client/` (package `tunnely`, org `com.tunnely`, Android + iOS), git-репозиторий (ветка main).
-- Выбрано VPN-ядро: Xray-core через libXray, см. docs/adr/0001-vpn-core.md.
+- Владелец выбрал VPN-ядро Mihomo (docs/adr/0002-vpn-core-mihomo.md); ждём подтверждения последствий GPL-3.0. Анимация: выразительная.
 
 ## Результаты тестирования
 Пока нет.

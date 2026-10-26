@@ -21,3 +21,4 @@ vpn_core/build/
 .idea/
 .vscode/
 .DS_Store
+vpn_client/android/app/libs/*.aar
