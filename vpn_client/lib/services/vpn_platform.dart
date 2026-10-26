@@ -78,6 +78,10 @@ class VpnPlatform {
   Future<int> delay(String proxyName, String url, {int timeoutMs = 5000}) async =>
       await _methods.invokeMethod<int>('delay', {'name': proxyName, 'url': url, 'timeoutMs': timeoutMs}) ?? -1;
 
+  /// Tests all members of [group] now (blocking) so "Auto" picks a live server.
+  Future<bool> healthCheck(String group) async =>
+      await _methods.invokeMethod<bool>('healthCheck', {'group': group}) ?? false;
+
   Future<bool> select(String group, String name) async =>
       await _methods.invokeMethod<bool>('select', {'group': group, 'name': name}) ?? false;
 

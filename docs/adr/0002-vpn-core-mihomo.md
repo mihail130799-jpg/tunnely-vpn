@@ -29,3 +29,8 @@
 - Собираем Go-библиотеку ядра через gomobile: `.aar` для Android, `.xcframework` для iOS (только macOS CI).
 - Конфигурация ядра — YAML Mihomo, генерируется на Dart из ссылок (vless://, trojan://, ss://, vmess://, hy2://, tuic://) и подписок (base64-список ссылок или Clash YAML).
 - Android: VpnService → fd → TUN Mihomo. iOS: NEPacketTunnelProvider → utun fd → TUN Mihomo; память расширения ограничена (~50 МБ), это нужно проверять на устройстве.
+
+## Дополнение 2026-10-26: совместимость с новыми Xray REALITY-серверами
+- REALITY-сервер (XTLS/REALITY, коммит 2026-09-08) отклоняет ClientHello без X25519MLKEM768 → Mihomo по умолчанию получает `REALITY authentication failed`.
+- Исправлено на стороне приложения: `support-x25519mlkem768: true` и отпечаток `chrome`/`edge` для Reality (`lib/core/mihomo_config.dart → withRealityCompat`). Проверено на серверах владельца.
+- Остаточный риск: Mihomo сообщает версию клиента 1.8.2 (мейнтейнеры отказались менять, issue #3339 NOT_PLANNED). Серверы Xray ≥ 26.7.11 с `minClientVer` по умолчанию (26.3.27) такого клиента отклонят; лечится на сервере (`minClientVer: "1.8.2"`) или патчем ядра (версия в `component/tls/reality.go`) — патч не понадобился для серверов владельца.

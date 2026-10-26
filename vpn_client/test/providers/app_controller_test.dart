@@ -50,6 +50,13 @@ class FakeVpn implements VpnPlatform {
   Future<TrafficInfo> traffic() async => const TrafficInfo(up: 1, down: 2);
   @override
   Future<int> delay(String proxyName, String url, {int timeoutMs = 5000}) async => delayResult;
+  int healthChecks = 0;
+  @override
+  Future<bool> healthCheck(String group) async {
+    healthChecks++;
+    return true;
+  }
+
   @override
   Future<bool> select(String group, String name) async {
     selects.add((group, name));
@@ -309,6 +316,16 @@ void main() {
     await Future<void>.delayed(const Duration(milliseconds: 10));
     expect(st().message?.id, before);
     expect(st().latency.values.single, 42);
+  });
+
+  test('auto mode runs a health check on connect', () async {
+    await ctrl().addSubscription('https://sub.example.com/abc'); // no server selected -> Auto
+    expect(st().isAuto, true);
+    await ctrl().connect();
+    vpn.emit(VpnStateInfo(VpnStatus.connected, connectedSince: DateTime.now()));
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    expect(vpn.healthChecks, 1);
+    expect(st().latency[autoLatencyKey], 42);
   });
 
   test('stableId is deterministic', () {

@@ -182,6 +182,29 @@ func Delay(proxyName string, testURL string, timeoutMs int32) int64 {
 	return int64(d)
 }
 
+// HealthCheck tests every member of a group now and blocks until done, so an
+// url-test group switches to a live server instead of waiting for its interval.
+func HealthCheck(group string) bool {
+	p, ok := tunnel.Proxies()[group]
+	if !ok {
+		return false
+	}
+	g, ok := p.Adapter().(outboundgroup.ProxyGroup)
+	if !ok {
+		return false
+	}
+	var wg sync.WaitGroup
+	for _, pv := range g.Providers() {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			pv.HealthCheck()
+		}()
+	}
+	wg.Wait()
+	return true
+}
+
 // SelectProxy switches a select-type group to the named proxy.
 func SelectProxy(group string, name string) bool {
 	p, ok := tunnel.Proxies()[group]

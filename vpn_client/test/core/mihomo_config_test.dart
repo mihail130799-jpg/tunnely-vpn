@@ -89,6 +89,43 @@ void main() {
     }
   });
 
+  group('reality compatibility', () {
+    test('enables MLKEM and replaces fingerprints without it', () {
+      final p = withRealityCompat({
+        'type': 'vless',
+        'client-fingerprint': 'firefox',
+        'reality-opts': {'public-key': 'K', 'short-id': '1'},
+      });
+      expect(p['client-fingerprint'], 'chrome');
+      expect(p['reality-opts'], {'public-key': 'K', 'short-id': '1', 'support-x25519mlkem768': true});
+    });
+
+    test('keeps chrome/edge fingerprints', () {
+      final p = withRealityCompat({'client-fingerprint': 'edge', 'reality-opts': {'public-key': 'K'}});
+      expect(p['client-fingerprint'], 'edge');
+    });
+
+    test('missing fingerprint becomes chrome', () {
+      expect(withRealityCompat({'reality-opts': {'public-key': 'K'}})['client-fingerprint'], 'chrome');
+    });
+
+    test('non-reality proxies are untouched', () {
+      final p = {'type': 'trojan', 'client-fingerprint': 'firefox', 'sni': 'x'};
+      expect(withRealityCompat(p), same(p));
+    });
+
+    test('applied inside generated config', () {
+      final s = ServerProfile(id: 'r', proxy: {
+        'name': 'R', 'type': 'vless', 'server': 'r.example.com', 'port': 443, 'uuid': 'u',
+        'client-fingerprint': 'firefox', 'reality-opts': {'public-key': 'K'},
+      });
+      final cfg = jsonDecode(buildMihomoConfig(servers: [s], selected: null, tunFd: 1).json) as Map;
+      final p = (cfg['proxies'] as List).single as Map;
+      expect(p['client-fingerprint'], 'chrome');
+      expect((p['reality-opts'] as Map)['support-x25519mlkem768'], true);
+    });
+  });
+
   test('empty server list throws', () {
     expect(() => buildMihomoConfig(servers: [], selected: null, tunFd: 1), throwsArgumentError);
   });

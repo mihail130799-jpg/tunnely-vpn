@@ -10,9 +10,9 @@ secrets/
 test_keys.txt
 
 # Build outputs
-releases/*.apk
-releases/*.aab
-releases/*.ipa
+releases/**/*.apk
+releases/**/*.aab
+releases/**/*.ipa
 vpn_core/build/
 *.aar
 *.xcframework/

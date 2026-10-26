@@ -19,7 +19,7 @@ import java.util.concurrent.Executors
  *  - `prepare` -> Boolean: asks for VPN permission if needed; true when granted.
  *  - `start` {config, serverName}: stores the config encrypted and starts the service.
  *  - `stop`, `state` -> Map, `traffic` -> Map, `delay` {name, url, timeoutMs} -> Int,
- *    `select` {group, name} -> Boolean, `validate` {config} -> String?, `coreVersion` -> String.
+ *    `select` {group, name} -> Boolean, `healthCheck` {group} -> Boolean, `validate` {config} -> String?, `coreVersion` -> String.
  * Events on `tunnely/vpn/state`: state maps (see [VpnStateSnapshot.toMap]).
  */
 class VpnBridge(
@@ -97,6 +97,13 @@ class VpnBridge(
                 io.execute {
                     val d = Tunnelycore.delay(name, url, timeout)
                     activity.runOnUiThread { result.success(d.toInt()) }
+                }
+            }
+            "healthCheck" -> {
+                val group = call.argument<String>("group") ?: ""
+                io.execute {
+                    val ok = Tunnelycore.healthCheck(group)
+                    activity.runOnUiThread { result.success(ok) }
                 }
             }
             "select" -> {

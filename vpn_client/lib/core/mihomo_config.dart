@@ -26,6 +26,28 @@ class TunAddresses {
 
 const latencyTestUrl = 'https://www.gstatic.com/generate_204';
 
+/// uTLS fingerprints whose Mihomo templates send a usable X25519MLKEM768 key share.
+const _mlkemFingerprints = {'chrome', 'edge'};
+
+/// Adapts a Reality proxy to current Xray servers.
+///
+/// Since 2026-09 the REALITY server rejects a ClientHello without an
+/// X25519MLKEM768 key share placed before X25519 (XTLS/REALITY "Reject
+/// outdated/strange Client Hello"). Mihomo strips that share unless
+/// `support-x25519mlkem768` is set, and its `firefox`/`safari`/... templates
+/// cannot provide it, so such servers fail with "REALITY authentication failed"
+/// while Xray-based clients work. Verified against the owner's servers.
+Map<String, dynamic> withRealityCompat(Map<String, dynamic> proxy) {
+  final reality = proxy['reality-opts'];
+  if (reality is! Map) return proxy;
+  final fp = '${proxy['client-fingerprint'] ?? ''}'.toLowerCase();
+  return {
+    ...proxy,
+    'client-fingerprint': _mlkemFingerprints.contains(fp) ? fp : 'chrome',
+    'reality-opts': {...reality, 'support-x25519mlkem768': true},
+  };
+}
+
 /// A generated Mihomo config plus the proxy names it assigned to each server.
 class MihomoConfig {
   MihomoConfig(this.json, this.proxyNames);
@@ -63,7 +85,7 @@ MihomoConfig buildMihomoConfig({
       i++;
     }
     idToName[s.id] = name;
-    proxies.add({...s.proxy, 'name': name});
+    proxies.add({...withRealityCompat(s.proxy), 'name': name});
   }
   final allNames = proxies.map((p) => p['name'] as String).toList();
   final selectedName = selected == null ? autoGroup : (idToName[selected] ?? autoGroup);

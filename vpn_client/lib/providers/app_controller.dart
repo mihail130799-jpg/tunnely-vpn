@@ -425,8 +425,11 @@ class AppController extends Notifier<AppState> {
     final id = state.selectedId;
     final name = id == null ? autoGroup : cfg.proxyNames[id];
     if (name == null) return;
+    // "Auto" starts on the first member until its first test; test all now so
+    // it moves to a live server right away.
+    if (id == null) await _vpn.healthCheck(autoGroup);
     final ms = await _vpn.delay(name, latencyTestUrl, timeoutMs: 6000);
-    if (id != null) state = state.copyWith(latency: {...state.latency, id: ms});
+    state = state.copyWith(latency: {...state.latency, id ?? autoLatencyKey: ms});
     if (ms < 0 && state.vpn.status == VpnStatus.connected && state.selectedId == id) {
       final who = id == null ? 'Ни один сервер' : 'Сервер «${state.selected?.name ?? ''}»';
       _say(
@@ -518,6 +521,9 @@ class AppController extends Notifier<AppState> {
     if (reconnect) await connect();
   }
 }
+
+/// Key in [AppState.latency] for the automatic group.
+const autoLatencyKey = '';
 
 /// Deterministic short id (FNV-1a 64-bit, hex) so servers keep their ids
 /// across subscription refreshes.
