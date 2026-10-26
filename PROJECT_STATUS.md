@@ -2,55 +2,71 @@
 
 > При перезапуске Claude Code: сначала прочитать этот файл и PRODUCT_DECISIONS.md.
 
-## Текущий этап
-Этап 5 — согласование функций (вопросы заданы владельцу). Бренд, дизайн (концепция C, DESIGN_SYSTEM.md), ядро Mihomo и лицензия GPL-3.0 согласованы. Ядро собрано в AAR.
-Далее технически: Android VpnService + MethodChannel, Dart-парсер ссылок и генератор YAML Mihomo, экраны по концепции C.
+## Текущий этап (2026-10-26)
+Этапы 1–5 (окружение, бренд, дизайн, функции, ядро) завершены. Идут этапы 6–8: Android-клиент работает на эмуляторе с реальным VPN-туннелем.
+Блокер для теста на серверах владельца: хост тестовой подписки недоступен с этого ПК (см. «Известные проблемы»).
 
-Установлено 2026-10-26: Flutter stable (D:\dev\flutter, первичная инициализация), Go 1.27.0. Git не был в PATH текущей сессии — в setup_windows.ps1 добавлять PATH явно.
+## Что сделано
+- **Ядро:** `vpn_core/tunnelycore` — Go-обёртка Mihomo v1.19.33 (Start/Stop/Validate/TrafficNow/Delay/SelectProxy/CloseAllConnections, Protector, LogSink). AAR собирается через gomobile (`scripts/build_core_android.ps1`, теги `with_gvisor,cmfa`).
+- **Dart (`vpn_client/lib`):**
+  - разбор ссылок vless/trojan/ss/vmess/hysteria2/tuic;
+  - подписки: base64, обычный список ссылок, Clash YAML, заголовки userinfo/title/interval;
+  - генератор конфига Mihomo: TUN по fd, fake-ip DNS через DoH, Авто (url-test) + ручной выбор, маршрутизация «РФ напрямую» с локальными rule-set .mrs, отказ DoT 853 для Private DNS;
+  - контроллер на Riverpod: импорт, дубликаты, подписки с обновлением раз в 24 ч, выбор сервера на лету, подключение, задержка (TCP-пинг или замер через ядро), настройки.
+- **Android:** `TunnelyVpnService` (VpnService, foreground-уведомление с кнопкой «Отключить», отслеживание смены сети, сброс соединений, `protect` + исключение собственного приложения из туннеля), `VpnBridge` (MethodChannel/EventChannel), плитка в шторке, конфиг шифруется ключом Android Keystore (AES-GCM), данные исключены из бэкапов. Deep links: `tunnely://import?url=`, `vless://` и другие схемы.
+- **UI (концепция C):** главный экран с анимированной кнопкой-туннелем, выдвижная панель серверов, лист импорта (буфер, QR, файл, ручной ввод), QR-сканер, настройки (автоподключение при запуске, маршрутизация, IPv6, подписки, тема), «О приложении и диагностика».
+- **Иконка:** собрана из логотипа владельца (адаптивная + монохромная для Android 13+). `branding/app_icon_1024.png` получена увеличением исходника 640 px, поэтому для iOS нужна векторная версия.
 
-Примечание по логотипу: исходник 640×640 JPG — для иконки iOS (1024×1024) и адаптивной иконки Android нужен векторный/крупный вариант знака без текста. План: перерисовать знак в SVG, показать владельцу на сверку.
+## Результаты тестирования
+| Проверка | Результат |
+|---|---|
+| `flutter analyze` | 0 замечаний |
+| `flutter test` | **70/70** (парсеры, подписки, генератор, контроллер) |
+| `go test ./tunnelycore` | OK: конфиги, сгенерированные Dart, принимает настоящий парсер Mihomo |
+| Debug APK (x86_64) | собирается, ставится на эмулятор Pixel 7 / Android 15 |
+| Импорт `vless://` через системную ссылку | ✅ на эмуляторе |
+| Системный запрос VPN и запуск туннеля | ✅ |
+| **Реальный трафик через VLESS Reality + Vision** | ✅ HTTP 200 `example.com` из оболочки эмулятора; в логе тестового сервера видны соединения приложений (`mtalk.google.com`, `example.com`) |
+| Отключение, повторное подключение | ✅ |
+| Ошибка подписки показывается пользователю | ✅ («Нет связи с сервером подписки…») |
+| Светлая и тёмная тема | ✅ скриншоты: `docs/screenshots/android/` |
+
+Тестовый сервер: локальный Mihomo в режиме VLESS Reality на 127.0.0.1:8443 (`D:\dev\mihomo-server`, вне репозитория; ключи одноразовые). Эмулятор видит его как 10.0.2.2.
+
+## Известные проблемы и непроверенное
+- ❗ **Тестовая подписка владельца недоступна**: `<сервер-владельца>` (<IP>), порт 8000 и порт 443, TCP-соединение не устанавливается ни с ПК, ни с эмулятора. Возможно, панель выключена или фильтрует IP. Подключение к серверам владельца **не проверено**. Ссылка хранится в `secrets/test_subscription.txt` (папка в .gitignore).
+- Скорость и трафик в UI в работе не сверялись с реальной нагрузкой (на простое показывает 0 Б/с).
+- Не проверены на устройстве: смена сети Wi-Fi ↔ мобильная, плитка в шторке, QR-сканер (у эмулятора нет камеры), импорт из файла, Trojan / SS / VMess / Hysteria2 / TUIC на реальных серверах (покрыты только юнит-тестами и проверкой Mihomo-парсером).
+- Виджет рабочего стола (решение 11) ещё не сделан.
+- На эмуляторе (swiftshader) в фоне видна слабая пунктирная окружность от размытия; на реальном устройстве не проверялось.
+- Release APK, подпись постоянным ключом и разделение по ABI ещё не сделаны (debug APK ~150 МБ: содержит ядро для 3 ABI).
+- iOS: ничего не сделано, кроме общего Dart-кода.
+
+## Перед выпуском (обязательно)
+- GPL-3.0: опубликовать исходный код и вписать ссылку в `sourceCodeUrl` (`lib/screens/about_screen.dart`). Публикация — только с согласия владельца.
+- Создать постоянный ключ подписи (хранить вне репозитория), собрать release APK.
 
 ## Окружение (проверено 2026-10-26)
 | Компонент | Состояние |
 |---|---|
 | ОС | Windows 11 Pro 10.0.26300, i5-12400, 15.8 ГБ RAM |
-| Диск D: | ~130 ГБ свободно |
-| Git | установлен 2026-10-26 (winget, Git 2.56.0.3) |
-| Flutter / Dart | Flutter 3.47.8 stable, Dart 3.13.7 — `D:\dev\flutter` (PATH не прописан глобально) |
-| Go / gomobile | Go 1.27.0 установлен; gomobile ещё нет — нужен для сборки sing-box (libbox) |
-| Android Studio | установлен, JBR OpenJDK 25.0.3 |
-| Android SDK | `%LOCALAPPDATA%\Android\Sdk`: platform 35, build-tools 35.0.0, NDK 27.2.12479018, cmdline-tools, emulator |
-| Образ эмулятора | android-37.0 google_apis_playstore x86_64; AVD ещё не создан |
-| Гипервизор | присутствует (эмулятор должен работать через WHPX — не проверено) |
-| Физическое Android-устройство | не подключено |
-| Node.js, Python 3.12, winget, GitHub CLI | есть; gh авторизован (аккаунт mihail130799-jpg) |
-| JAVA_HOME / ANDROID_HOME | не заданы — задать в setup_windows.ps1 |
+| Git | 2.56 (`C:\Program Files\Git\cmd`, в PATH текущей сессии нет — указывать явно) |
+| Flutter / Dart | 3.47.8 / 3.13.7, `D:\dev\flutter` |
+| Go / gomobile | 1.27.0, gomobile из golang.org/x/mobile |
+| Android SDK | platform 35/36, build-tools 35, NDK 27.2 (ядро) и 28.2 (плагин jni), cmdline-tools |
+| JDK | JBR 25 из Android Studio (сборка работает) |
+| Эмулятор | AVD `tunnely_test` (Pixel 7, Android 15 google_apis x86_64), WHPX |
+| Особенность | `kotlin.incremental=false` в android/gradle.properties: проект на D:, pub cache на C: |
 
 ## Ограничения окружения
-- Нет Mac → iOS-сборка и Xcode не могут быть запущены локально; только исходники + CI на macOS (GitHub Actions) или облачный Mac.
-- Apple Developer Program не оплачен → NetworkExtension-entitlement и установка на iPhone невозможны до оплаты.
-- Нет тестового VLESS Reality ключа в проекте → реальное подключение проверить можно будет, когда владелец даст тестовый ключ (не коммитить его).
-- JDK 25 из Android Studio может быть слишком новым для Gradle/AGP — при необходимости установить JDK 17/21.
-
-## Выполненные задачи
-- Проверено окружение, установлены Git, Flutter, Go.
-- Бренд, темы и концепция C согласованы; DESIGN_SYSTEM.md написан.
-- Создан Flutter-проект `vpn_client/` (package `tunnely`, org `com.tunnely`, Android + iOS), git-репозиторий (ветка main).
-- Ядро Mihomo v1.19.33 подтверждено, лицензия проекта GPL-3.0 (LICENSE). Анимация: выразительная. Android-референс: Husi (docs/HUSI_ANALYSIS.md).
-- `vpn_core/tunnelycore` — Go-обёртка Mihomo (Start/Stop/Validate/TrafficNow/Delay/SelectProxy/NowProxy, Protector для VpnService.protect, LogSink). `go vet` чистый.
-- **Собран `tunnelycore.aar`** (gomobile, arm64 / armv7 / x86_64, minSdk 24, ~80 МБ на все ABI) скриптом `scripts/build_core_android.ps1`. Запуск ядра на устройстве ещё НЕ проверялся.
-
-## Результаты тестирования
-Пока нет.
-
-## Известные ошибки
-Нет.
-
-## Непроверенные функции
-Всё (код ещё не написан).
+- Нет Mac → Xcode/iOS-сборка только через CI на macOS или облачный Mac.
+- Apple Developer Program не оплачен → NetworkExtension и установка на iPhone недоступны.
+- Нет физического Android-устройства → только эмулятор.
 
 ## Следующие действия
-1. Согласовать анимации, затем функции (этап 5).
-2. Технически: установить gomobile, собрать libXray `.aar`; создать AVD и проверить эмулятор; Android VpnService + MethodChannel.
-3. Перерисовать знак логотипа в SVG для иконок.
-4. Получить от владельца тестовый ключ VLESS Reality (не коммитить; хранить в secrets/).
+1. Получить от владельца рабочий доступ к подписке (или прямой `vless://` ключ) → проверить серверы владельца.
+2. Release-сборка: ключ подписи, split по ABI, `scripts/build_android.ps1`, `releases/`, SHA-256.
+3. Виджет рабочего стола; проверка трафика/скорости, смены сети, плитки.
+4. Скрипты `setup_windows.ps1`, `test_project.ps1`, CI (GitHub Actions).
+5. iOS: Xcode-проект, PacketTunnel extension, сборка xcframework ядра на macOS CI.
+6. Документация: README, ARCHITECTURE, ANDROID_BUILD, IOS_BUILD, VPN_PROTOCOLS, SECURITY, TESTING, TROUBLESHOOTING, WINDOWS_SETUP.

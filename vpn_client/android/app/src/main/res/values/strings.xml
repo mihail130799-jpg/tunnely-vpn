@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">Tunnely</string>
+    <string name="vpn_channel_name">Состояние VPN</string>
+    <string name="vpn_notification_connecting">Tunnely: подключение…</string>
+    <string name="vpn_notification_connected">Tunnely: защищено</string>
+    <string name="vpn_action_disconnect">Отключить</string>
+    <string name="vpn_error_no_config">Сначала добавьте ключ или подписку в приложении</string>
+    <string name="vpn_error_permission">Нет разрешения на VPN. Откройте Tunnely и разрешите подключение</string>
+    <string name="vpn_error_start">Не удалось подключиться: %1$s</string>
+    <string name="tile_label">Tunnely</string>
+</resources>

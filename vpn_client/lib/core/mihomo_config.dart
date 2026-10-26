@@ -26,9 +26,21 @@ class TunAddresses {
 
 const latencyTestUrl = 'https://www.gstatic.com/generate_204';
 
-/// Builds a Mihomo configuration. Mihomo reads YAML, and JSON is valid YAML,
-/// so the result is emitted as JSON for exact, dependency-free encoding.
-String buildMihomoConfig({
+/// A generated Mihomo config plus the proxy names it assigned to each server.
+class MihomoConfig {
+  MihomoConfig(this.json, this.proxyNames);
+
+  /// Config text. Mihomo reads YAML, and JSON is valid YAML, so it is emitted
+  /// as JSON for exact, dependency-free encoding.
+  final String json;
+
+  /// [ServerProfile.id] -> unique proxy name inside the config.
+  final Map<String, String> proxyNames;
+}
+
+/// Builds a Mihomo configuration for [servers] with [selected] (server id,
+/// or null for automatic choice) preselected in the [selectorGroup].
+MihomoConfig buildMihomoConfig({
   required List<ServerProfile> servers,
   required String? selected,
   required int tunFd,
@@ -118,6 +130,9 @@ String buildMihomoConfig({
         'ru-ips': {'type': 'file', 'behavior': 'ipcidr', 'format': 'mrs', 'path': './ruleset/ru-ips.mrs'},
       },
     'rules': [
+      // Android "Private DNS" probes DoT on the TUN DNS address; fail fast so it
+      // falls back to plain DNS, which Mihomo hijacks.
+      'AND,((IP-CIDR,172.19.0.0/30,no-resolve),(DST-PORT,853)),REJECT',
       'IP-CIDR,10.0.0.0/8,DIRECT,no-resolve',
       'IP-CIDR,172.16.0.0/12,DIRECT,no-resolve',
       'IP-CIDR,192.168.0.0/16,DIRECT,no-resolve',
@@ -141,5 +156,5 @@ String buildMihomoConfig({
   final members = (group['proxies'] as List<String>)..remove(selectedName);
   group['proxies'] = [selectedName, ...members];
 
-  return const JsonEncoder.withIndent('  ').convert(config);
+  return MihomoConfig(const JsonEncoder.withIndent('  ').convert(config), idToName);
 }

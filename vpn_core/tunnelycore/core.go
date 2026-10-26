@@ -20,6 +20,8 @@ import (
 	C "github.com/metacubex/mihomo/constant"
 	"github.com/metacubex/mihomo/hub"
 	"github.com/metacubex/mihomo/hub/executor"
+	"github.com/metacubex/mihomo/listener"
+	LC "github.com/metacubex/mihomo/listener/config"
 	"github.com/metacubex/mihomo/log"
 	"github.com/metacubex/mihomo/tunnel"
 	"github.com/metacubex/mihomo/tunnel/statistic"
@@ -114,6 +116,13 @@ func Start(configYAML string) error {
 		return err
 	}
 	hub.ApplyConfig(cfg)
+	// Mihomo only logs listener failures; surface a TUN failure to the caller so
+	// the app never reports "connected" without a working tunnel.
+	if cfg.General.Tun.Enable && !listener.GetTunConf().Enable {
+		executor.Shutdown()
+		listener.LastTunConf = LC.Tun{}
+		return errors.New("TUN interface failed to start")
+	}
 	running = true
 	return nil
 }
@@ -126,12 +135,21 @@ func Stop() {
 		return
 	}
 	executor.Shutdown()
+	// The next TUN fd may reuse the same number; forget the old config so
+	// Mihomo does not treat the new one as unchanged and skip creating it.
+	listener.LastTunConf = LC.Tun{}
+	CloseAllConnections()
+	statistic.DefaultManager.ResetStatistic()
+	running = false
+}
+
+// CloseAllConnections drops active connections so apps reconnect over the
+// current network (call after the device switches networks).
+func CloseAllConnections() {
 	statistic.DefaultManager.Range(func(c statistic.Tracker) bool {
 		_ = c.Close()
 		return true
 	})
-	statistic.DefaultManager.ResetStatistic()
-	running = false
 }
 
 // IsRunning reports whether Start succeeded and Stop has not been called.

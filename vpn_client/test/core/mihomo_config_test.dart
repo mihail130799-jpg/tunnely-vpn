@@ -15,7 +15,7 @@ void main() {
   final servers = [_s('a', 'Germany'), _s('b', 'Germany'), _s('c', 'PROXY')];
 
   Map<String, dynamic> build({String? selected, RoutingMode routing = RoutingMode.ruDirect}) =>
-      jsonDecode(buildMihomoConfig(servers: servers, selected: selected, tunFd: 42, routing: routing))
+      jsonDecode(buildMihomoConfig(servers: servers, selected: selected, tunFd: 42, routing: routing).json)
           as Map<String, dynamic>;
 
   test('tun uses the provided fd and fixed addresses', () {
@@ -35,6 +35,11 @@ void main() {
     expect(g['name'], selectorGroup);
     expect((g['proxies'] as List).first, 'Germany (2)');
     expect((g['proxies'] as List).toSet().length, (g['proxies'] as List).length);
+  });
+
+  test('proxyNames maps ids to unique names', () {
+    final c = buildMihomoConfig(servers: servers, selected: null, tunFd: 1);
+    expect(c.proxyNames, {'a': 'Germany', 'b': 'Germany (2)', 'c': 'PROXY '});
   });
 
   test('no selection means auto group', () {
@@ -80,7 +85,7 @@ void main() {
     for (final routing in RoutingMode.values) {
       final out = File('../vpn_core/tunnelycore/testdata/generated_${routing.name}.json');
       out.parent.createSync(recursive: true);
-      out.writeAsStringSync(buildMihomoConfig(servers: servers, selected: '0', tunFd: 0, routing: routing));
+      out.writeAsStringSync(buildMihomoConfig(servers: servers, selected: '0', tunFd: 0, routing: routing).json);
     }
   });
 
