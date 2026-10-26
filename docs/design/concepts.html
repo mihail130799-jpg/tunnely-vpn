@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Tunnely Concepts</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root {
+    --page-bg: #0A0C24;
+    --page-fg: #E8ECFF;
+    --page-muted: #8D94C4;
+    --navy: #010333;
+    --blue: #3B5DFD;
+    --cyan: #1AB4FE;
+    --violet: #6E32E9;
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--page-bg);
+    color: var(--page-fg);
+    font-family: Inter, system-ui, sans-serif;
+    padding: 32px 16px 64px;
+  }
+  header.page { max-width: 1100px; margin: 0 auto 28px; }
+  header.page h1 { font-size: 26px; margin: 0 0 6px; letter-spacing: -0.02em; }
+  header.page p { margin: 0; color: var(--page-muted); font-size: 14px; line-height: 1.5; }
+  section.concept {
+    max-width: 1100px; margin: 0 auto 40px;
+    display: grid; grid-template-columns: 300px 1fr; gap: 28px; align-items: start;
+  }
+  .concept-info h2 { margin: 0 0 4px; font-size: 22px; }
+  .concept-info .tag {
+    display: inline-block; font-size: 12px; font-weight: 600; padding: 4px 10px; border-radius: 99px;
+    background: rgba(59,93,253,.18); color: #9EB2FF; margin-bottom: 12px;
+  }
+  .concept-info ul { margin: 0; padding-left: 18px; color: var(--page-muted); font-size: 14px; line-height: 1.6; }
+  .concept-info li b { color: var(--page-fg); font-weight: 600; }
+  .phones { display: flex; gap: 24px; flex-wrap: wrap; }
+  .phone-wrap { display: flex; flex-direction: column; gap: 8px; align-items: center; }
+  .phone-wrap .cap { font-size: 12px; color: var(--page-muted); }
+  @media (max-width: 760px) { section.concept { grid-template-columns: 1fr; } }
+
+  /* ---------- phone ---------- */
+  .phone {
+    width: 300px; height: 640px; border-radius: 44px; padding: 10px;
+    background: #15172E; box-shadow: 0 20px 60px rgba(0,0,0,.45), inset 0 0 0 2px #2A2D4D;
+  }
+  .screen {
+    position: relative; width: 100%; height: 100%; border-radius: 36px; overflow: hidden;
+    background: var(--bg); color: var(--fg);
+    display: flex; flex-direction: column;
+  }
+  .screen.dark {
+    --bg: #010333; --fg: #FFFFFF; --muted: #8C93C9; --card: #0B0F4A; --card2: #121860;
+    --line: rgba(255,255,255,.07); --active: rgba(26,180,254,.12); --accent: #1AB4FE;
+  }
+  .screen.light {
+    --bg: #F4F6FC; --fg: #0B1033; --muted: #7A80A6; --card: #FFFFFF; --card2: #EEF1FB;
+    --line: rgba(11,16,51,.07); --active: rgba(59,93,253,.08); --accent: #3B5DFD;
+  }
+  .status-bar {
+    height: 34px; flex: none; display: flex; justify-content: space-between; align-items: center;
+    padding: 0 26px; font-size: 12px; font-weight: 600;
+  }
+  .notch { position: absolute; top: 8px; left: 50%; transform: translateX(-50%); width: 90px; height: 24px; background: #000; border-radius: 14px; z-index: 5; }
+  .icon { width: 22px; height: 22px; stroke: currentColor; fill: none; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+  .icon.sm { width: 18px; height: 18px; }
+  .muted { color: var(--muted); }
+  .badge {
+    width: 32px; height: 32px; border-radius: 50%; flex: none; display: grid; place-items: center;
+    font-size: 11px; font-weight: 700; color: #fff; overflow: hidden; position: relative;
+  }
+  .n { min-width: 0; }
+  .n b, .n span, .b-stat b, .c-import div { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .n span { display: block; }
+  .ping { font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .ping.good { color: #2BD48A; } .ping.mid { color: #F2B33D; }
+
+  /* concept A */
+  .a-top { display: flex; justify-content: space-between; align-items: center; padding: 6px 20px 0; }
+  .a-top .word { font-weight: 700; font-size: 16px; letter-spacing: -.01em; }
+  .a-hero { display: flex; flex-direction: column; align-items: center; padding: 14px 0 12px; }
+  .a-status { margin-top: 10px; font-size: 13px; font-weight: 600; display: flex; gap: 6px; align-items: center; }
+  .a-status .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--dotc); }
+  .a-list { margin: 0 12px; background: var(--card); border-radius: 20px; flex: 1; overflow: hidden; box-shadow: 0 4px 18px rgba(0,0,0,.06); }
+  .a-head { display: flex; align-items: center; gap: 8px; padding: 12px 14px; border-bottom: 1px solid var(--line); }
+  .a-head .t { flex: 1; } .a-head .t b { display: block; font-size: 14px; } .a-head .t span { font-size: 11px; }
+  .a-head .acts { display: flex; gap: 10px; color: var(--accent); }
+  .row { display: flex; align-items: center; gap: 12px; padding: 10px 14px; border-bottom: 1px solid var(--line); }
+  .row.active { background: var(--active); }
+  .row .n { flex: 1; } .row .n b { display: block; font-size: 14px; font-weight: 600; } .row .n span { font-size: 11px; }
+
+  /* concept B */
+  .b-top { display: flex; justify-content: space-between; align-items: center; padding: 6px 20px 0; }
+  .b-top .brand { display: flex; align-items: center; gap: 8px; font-weight: 700; font-size: 17px; }
+  .b-hero { display: flex; flex-direction: column; align-items: center; padding: 18px 0 8px; }
+  .b-state { margin-top: 14px; font-size: 22px; font-weight: 700; letter-spacing: -.02em; }
+  .b-timer { font-size: 13px; margin-top: 2px; font-variant-numeric: tabular-nums; }
+  .b-stats { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin: 14px 16px 10px; }
+  .b-stat { background: var(--card); border-radius: 16px; padding: 10px 12px; display: flex; gap: 10px; align-items: center; }
+  .b-stat .ic { width: 30px; height: 30px; border-radius: 10px; display: grid; place-items: center; background: var(--card2); color: var(--accent); }
+  .b-stat > div:last-child { min-width: 0; }
+  .b-stat b { display: block; font-size: 13px; } .b-stat span { font-size: 11px; }
+  .b-server { margin: 0 16px; background: var(--card); border-radius: 18px; padding: 12px 14px; display: flex; gap: 12px; align-items: center; }
+  .b-server .n { flex: 1; } .b-server .n b { display: block; font-size: 15px; } .b-server .n span { font-size: 12px; }
+  .b-server .chg { font-size: 12px; font-weight: 600; color: var(--accent); display: flex; align-items: center; gap: 2px; }
+  .b-nav { margin-top: auto; display: flex; justify-content: space-around; padding: 10px 0 22px; border-top: 1px solid var(--line); background: var(--card); }
+  .b-nav div { display: flex; flex-direction: column; align-items: center; gap: 3px; font-size: 10px; color: var(--muted); }
+  .b-nav div.on { color: var(--accent); }
+
+  /* concept C */
+  .screen.c.dark { background: radial-gradient(120% 70% at 50% 28%, #2A2FB8 0%, #0A0F6A 38%, #010333 75%); }
+  .screen.c.light { background: radial-gradient(120% 70% at 50% 28%, #DCE6FF 0%, #EEF2FD 45%, #F7F8FD 80%); }
+  .c-top { display: flex; justify-content: space-between; align-items: center; padding: 6px 18px 0; }
+  .pill { display: flex; align-items: center; gap: 6px; padding: 7px 12px; border-radius: 99px; font-size: 12px; font-weight: 600; background: var(--pillbg); }
+  .screen.dark .pill { --pillbg: rgba(255,255,255,.1); }
+  .screen.light .pill { --pillbg: rgba(59,93,253,.1); }
+  .roundbtn { width: 38px; height: 38px; border-radius: 50%; display: grid; place-items: center; background: var(--pillbg); }
+  .screen.dark .roundbtn { --pillbg: rgba(255,255,255,.1); }
+  .screen.light .roundbtn { --pillbg: rgba(59,93,253,.1); color: #3B5DFD; }
+  .c-hero { display: flex; flex-direction: column; align-items: center; padding-top: 26px; }
+  .c-timer { font-size: 34px; font-weight: 800; letter-spacing: -.02em; margin-top: 18px; font-variant-numeric: tabular-nums; }
+  .c-sub { font-size: 12px; margin-top: 2px; display: flex; gap: 14px; }
+  .c-sheet { margin-top: auto; background: var(--card); border-radius: 28px 28px 0 0; padding: 8px 16px 24px; box-shadow: 0 -10px 30px rgba(0,0,0,.18); }
+  .grab { width: 38px; height: 4px; border-radius: 4px; background: var(--line); margin: 0 auto 12px; filter: brightness(2.5); }
+  .screen.light .grab { background: #D5D9EA; filter: none; }
+  .c-cur { display: flex; gap: 12px; align-items: center; }
+  .c-cur .n { flex: 1; } .c-cur .n b { display: block; font-size: 15px; } .c-cur .n span { font-size: 12px; }
+  .chips { display: flex; gap: 8px; margin-top: 14px; overflow: hidden; }
+  .chip { display: flex; align-items: center; gap: 6px; padding: 6px 10px 6px 6px; border-radius: 99px; background: var(--card2); font-size: 12px; font-weight: 600; white-space: nowrap; }
+  .chip .badge { width: 22px; height: 22px; font-size: 8px; }
+  .c-import { margin-top: 14px; display: flex; gap: 8px; }
+  .c-import div { flex: 1; display: flex; align-items: center; justify-content: center; gap: 6px; padding: 11px; border-radius: 14px; font-size: 13px; font-weight: 600; background: var(--card2); }
+  .c-import div.primary { background: linear-gradient(135deg, #3B5DFD, #1AB4FE); color: #fff; }
+</style>
+</head>
+<body>
+<header class="page">
+  <h1>Tunnely VPN: концепции главного экрана</h1>
+  <p>Это макеты-концепты (HTML), а не скриншоты работающего приложения. В каждой концепции показаны тёмная тема в состоянии «Подключено» и светлая в состоянии «Отключено». Кнопка подключения нарисована по мотивам логотипа Tunnely. Кружки с кодом страны заменяют флаги, в приложении будут настоящие флаги.</p>
+</header>
+
+<section class="concept">
+  <div class="concept-info">
+    <span class="tag">Близко к Happ</span>
+    <h2>A · «Классика»</h2>
+    <ul>
+      <li><b>Один экран:</b> кнопка сверху, серверы списком прямо под ней.</li>
+      <li>Серверы сгруппированы по подписке, в шапке группы «обновить», «тест задержки» и меню.</li>
+      <li>Сверху только «настройки» и «+».</li>
+      <li>Статистики нет, только статус и таймер.</li>
+      <li>Знакомо пользователям Happ, но кнопка и цвета свои.</li>
+    </ul>
+  </div>
+  <div class="phones" id="concept-a"></div>
+</section>
+
+<section class="concept">
+  <div class="concept-info">
+    <span class="tag">Середина</span>
+    <h2>B · «Баланс»</h2>
+    <ul>
+      <li><b>Крупная кнопка-туннель</b> и большой статус.</li>
+      <li>Скорость загрузки и отдачи в двух плитках.</li>
+      <li>Одна карточка текущего сервера, по «Сменить» открывается список.</li>
+      <li>Нижнее меню: Главная, Серверы, Настройки.</li>
+      <li>Как у большинства коммерческих VPN, понятно новичкам.</li>
+    </ul>
+  </div>
+  <div class="phones" id="concept-b"></div>
+</section>
+
+<section class="concept">
+  <div class="concept-info">
+    <span class="tag">Своё, дальше от Happ</span>
+    <h2>C · «Свет в туннеле»</h2>
+    <ul>
+      <li><b>Полноэкранный градиент</b> в цветах логотипа, туннель «светится» при подключении.</li>
+      <li>Крупный таймер, под ним скорость.</li>
+      <li>Нижняя выдвижная панель: текущий сервер, быстрые страны-«чипсы», импорт ключа.</li>
+      <li>Сверху плашка статуса «Защищено» и кнопка импорта.</li>
+      <li>Самый «брендовый» и эффектный, лучше всего смотрится в тёмной теме.</li>
+    </ul>
+  </div>
+  <div class="phones" id="concept-c"></div>
+</section>
+
+<script>
+const ICONS = {
+  gear: '<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>',
+  plus: '<path d="M12 5v14M5 12h14"/>',
+  refresh: '<path d="M21 12a9 9 0 0 1-15.5 6.2L3 16M3 12a9 9 0 0 1 15.5-6.2L21 8M21 3v5h-5M3 21v-5h5"/>',
+  gauge: '<path d="M12 14l4-4"/><path d="M3.3 17a9 9 0 1 1 17.4 0"/>',
+  dots: '<circle cx="5" cy="12" r="1"/><circle cx="12" cy="12" r="1"/><circle cx="19" cy="12" r="1"/>',
+  chev: '<path d="M9 6l6 6-6 6"/>',
+  down: '<path d="M12 4v14M6 12l6 6 6-6"/>',
+  up: '<path d="M12 20V6M6 12l6-6 6 6"/>',
+  home: '<path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/>',
+  list: '<path d="M8 6h13M8 12h13M8 18h13M3 6h.01M3 12h.01M3 18h.01"/>',
+  shield: '<path d="M12 3l8 3v6c0 4.5-3.4 8.3-8 9-4.6-.7-8-4.5-8-9V6z"/><path d="M9 12l2 2 4-4"/>',
+  qr: '<rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><path d="M14 14h3v3M21 14v.01M17 21h4v-4M14 21v-3"/>',
+  clip: '<rect x="8" y="3" width="8" height="4" rx="1"/><path d="M16 5h2a2 2 0 0 1 2 2v13a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V7a2 2 0 0 1 2-2h2"/>',
+  key: '<circle cx="8" cy="15" r="4"/><path d="M10.8 12.2L20 3M16 7l3 3"/>',
+};
+const ic = (n, cls = '') => `<svg class="icon ${cls}" viewBox="0 0 24 24">${ICONS[n]}</svg>`;
+
+// Country badges stand in for flags (Windows renders flag emoji as letters).
+const BADGE = { DE: '#E0A100', NL: '#E2483D', FI: '#2F6FE0', US: '#3B5DFD', GB: '#C4304A', TR: '#D93636' };
+const badge = c => `<div class="badge" style="background:${BADGE[c]}">${c}</div>`;
+
+function mix(a, b, t) {
+  const p = h => [1, 3, 5].map(i => parseInt(h.slice(i, i + 2), 16));
+  const [x, y] = [p(a), p(b)];
+  return '#' + x.map((v, i) => Math.round(v + (y[i] - v) * t).toString(16).padStart(2, '0')).join('');
+}
+
+// Tunnel button inspired by the Tunnely mark: concentric arches, a lit portal, a road.
+let uid = 0;
+function tunnel(size, on, theme) {
+  const id = 't' + (uid++);
+  const rings = 6;
+  const outer = on ? '#3B5DFD' : (theme === 'dark' ? '#2A3070' : '#C9D0EA');
+  const inner = on ? '#0A0E57' : (theme === 'dark' ? '#0B0F3A' : '#EEF1FA');
+  const edge = on ? '#1AB4FE' : (theme === 'dark' ? '#3A4290' : '#B6BEDF');
+  let arches = '';
+  for (let i = 0; i < rings; i++) {
+    const r = 92 - i * 13;
+    const t = i / (rings - 1);
+    const fill = mix(outer, inner, t);
+    const top = 100 - r;
+    arches += `<path d="M${100 - r} 178 V100 A${r} ${r} 0 0 1 ${100 + r} 100 V178 Z" fill="${fill}"
+      stroke="${i === 0 ? edge : 'none'}" stroke-width="${i === 0 ? 2 : 0}" stroke-opacity=".7"/>`;
+  }
+  const portal = on ? '#FFFFFF' : (theme === 'dark' ? '#4A5196' : '#AEB6D8');
+  const glow = on ? `<circle cx="100" cy="112" r="34" fill="url(#${id}g)"/>` : '';
+  const road = on ? 'rgba(255,255,255,.18)' : (theme === 'dark' ? 'rgba(255,255,255,.06)' : 'rgba(11,16,51,.06)');
+  const dash = on ? 'rgba(255,255,255,.9)' : (theme === 'dark' ? 'rgba(255,255,255,.25)' : 'rgba(11,16,51,.2)');
+  const shadow = on ? `drop-shadow(0 10px 30px rgba(26,180,254,.45))` : (theme === 'dark' ? 'none' : 'drop-shadow(0 10px 24px rgba(59,93,253,.15))');
+  return `<svg width="${size}" height="${size * 0.9}" viewBox="0 0 200 180" style="filter:${shadow}">
+    <defs>
+      <radialGradient id="${id}g"><stop offset="0" stop-color="#BFF0FF" stop-opacity=".95"/><stop offset="1" stop-color="#1AB4FE" stop-opacity="0"/></radialGradient>
+      <clipPath id="${id}c"><path d="M8 178 V100 A92 92 0 0 1 192 100 V178 Z"/></clipPath>
+    </defs>
+    <g clip-path="url(#${id}c)">
+      ${arches}
+      ${glow}
+      <path d="M92 124 L108 124 L150 180 L50 180 Z" fill="${road}"/>
+      <path d="M100 130 V138 M100 146 V156 M100 164 V178" stroke="${dash}" stroke-width="3" stroke-linecap="round"/>
+      <path d="M90 124 V112 A10 10 0 0 1 110 112 V124 Z" fill="${portal}"/>
+    </g>
+  </svg>`;
+}
+
+const statusBar = () => `<div class="notch"></div><div class="status-bar"><span>9:41</span><span>●●● 100%</span></div>`;
+
+const SERVERS = [
+  ['DE', 'Германия', 'Франкфурт · Reality', 48, 'good'],
+  ['NL', 'Нидерланды', 'Амстердам · Reality', 56, 'good'],
+  ['FI', 'Финляндия', 'Хельсинки · Reality', 39, 'good'],
+  ['US', 'США', 'Нью-Йорк · Trojan', 142, 'mid'],
+  ['GB', 'Великобритания', 'Лондон · Reality', 71, 'good'],
+  ['TR', 'Турция', 'Стамбул · Shadowsocks', 95, 'mid'],
+];
+
+function conceptA(theme, on) {
+  const rows = SERVERS.map((s, i) => `<div class="row ${on && i === 0 ? 'active' : ''}">
+      ${badge(s[0])}<div class="n"><b>${s[1]}</b><span class="muted">${s[2]}</span></div>
+      <span class="ping ${s[4]}">${s[3]} мс</span></div>`).join('');
+  return `<div class="screen ${theme}">${statusBar()}
+    <div class="a-top">${ic('gear')}<span class="word">Tunnely</span>${ic('plus')}</div>
+    <div class="a-hero">${tunnel(170, on, theme)}
+      <div class="a-status" style="--dotc:${on ? '#2BD48A' : '#8C93C9'}"><span class="dot"></span>${on ? 'Подключено · 00:12:45' : 'Отключено'}</div>
+    </div>
+    <div class="a-list">
+      <div class="a-head"><div class="t"><b>Моя подписка</b><span class="muted">обновлено сегодня, 10:42</span></div>
+        <div class="acts">${ic('refresh', 'sm')}${ic('gauge', 'sm')}${ic('dots', 'sm')}</div></div>
+      ${rows}
+    </div><div style="height:14px"></div></div>`;
+}
+
+function conceptB(theme, on) {
+  return `<div class="screen ${theme}">${statusBar()}
+    <div class="b-top"><div class="brand">${tunnel(26, true, theme)}Tunnely</div>${ic('shield')}</div>
+    <div class="b-hero">${tunnel(210, on, theme)}
+      <div class="b-state">${on ? 'Подключено' : 'Отключено'}</div>
+      <div class="b-timer muted">${on ? '00:12:45' : 'Нажмите на туннель, чтобы подключиться'}</div>
+    </div>
+    <div class="b-stats">
+      <div class="b-stat"><div class="ic">${ic('down', 'sm')}</div><div><b>${on ? '12,4 МБ/с' : '—'}</b><span class="muted">Загрузка</span></div></div>
+      <div class="b-stat"><div class="ic">${ic('up', 'sm')}</div><div><b>${on ? '1,2 МБ/с' : '—'}</b><span class="muted">Отдача</span></div></div>
+    </div>
+    <div class="b-server">${badge('DE')}<div class="n"><b>Германия</b><span class="muted">Франкфурт</span></div>
+      <span class="chg">Сменить${ic('chev', 'sm')}</span></div>
+    <div class="b-nav"><div class="on">${ic('home')}Главная</div><div>${ic('list')}Серверы</div><div>${ic('gear')}Настройки</div></div>
+  </div>`;
+}
+
+function conceptC(theme, on) {
+  const chips = SERVERS.slice(1, 5).map(s => `<div class="chip">${badge(s[0])}${s[1]}</div>`).join('');
+  return `<div class="screen c ${theme}">${statusBar()}
+    <div class="c-top"><div class="pill"><span style="width:7px;height:7px;border-radius:50%;background:${on ? '#2BD48A' : '#F2B33D'}"></span>${on ? 'Защищено' : 'Не защищено'}</div>
+      <div class="roundbtn">${ic('plus', 'sm')}</div></div>
+    <div class="c-hero">${tunnel(250, on, theme)}
+      <div class="c-timer">${on ? '00:12:45' : 'Подключить'}</div>
+      <div class="c-sub muted">${on ? `<span>↓ 12,4 МБ/с</span><span>↑ 1,2 МБ/с</span>` : '<span>Нажмите на туннель</span>'}</div>
+    </div>
+    <div class="c-sheet"><div class="grab"></div>
+      <div class="c-cur">${badge('DE')}<div class="n"><b>Германия · Франкфурт</b><span class="muted">VLESS Reality · 48 мс</span></div>${ic('chev', 'sm')}</div>
+      <div class="chips">${chips}</div>
+      <div class="c-import"><div class="primary">${ic('clip', 'sm')}Из буфера</div><div>${ic('qr', 'sm')}QR-код</div></div>
+    </div>
+  </div>`;
+}
+
+const put = (id, fn) => {
+  document.getElementById(id).innerHTML = [['dark', true, 'Тёмная · подключено'], ['light', false, 'Светлая · отключено']]
+    .map(([t, on, cap]) => `<div class="phone-wrap"><div class="phone">${fn(t, on)}</div><span class="cap">${cap}</span></div>`).join('');
+};
+put('concept-a', conceptA);
+put('concept-b', conceptB);
+put('concept-c', conceptC);
+</script>
+</body>
+</html>

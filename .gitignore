@@ -1,0 +1,23 @@
+# Secrets: never commit
+*.jks
+*.keystore
+*.p12
+*.mobileprovision
+key.properties
+secrets/
+.env
+*.local.json
+test_keys.txt
+
+# Build outputs
+releases/*.apk
+releases/*.aab
+releases/*.ipa
+vpn_core/build/
+*.aar
+*.xcframework/
+
+# Tools
+.idea/
+.vscode/
+.DS_Store
