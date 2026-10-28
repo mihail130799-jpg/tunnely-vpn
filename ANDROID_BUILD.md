@@ -32,7 +32,7 @@
 ```powershell
 .\scripts\build_android.ps1                # анализ + тесты + release APK
 .\scripts\build_android.ps1 -SkipTests
-.\scripts\build_android.ps1 -RebuildCore   # пересобрать ядро Mihomo (Go → AAR) перед сборкой
+.\scripts\build_android.ps1 -RebuildCore   # пересобрать ядро Xray (Go → AAR) перед сборкой
 ```
 Версия берётся из `vpn_client/pubspec.yaml` (`version: 0.1.1+2`; число после `+` нужно увеличивать при каждом выпуске — Android сравнивает его при обновлении). При разбиении по ABI Flutter добавляет к нему 1000×ABI: armeabi-v7a → 1002, arm64-v8a → 2002, x86_64 → 4002.
 

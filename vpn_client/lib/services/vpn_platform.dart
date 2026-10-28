@@ -30,6 +30,32 @@ class VpnStateInfo {
   }
 }
 
+class NativeLogs {
+  const NativeLogs(this.core, this.events);
+  final String core;
+  final String events;
+}
+
+class DelayResult {
+  const DelayResult(this.ms, this.error);
+
+  /// Milliseconds, or -1 on failure.
+  final int ms;
+
+  /// Core error text on failure, else null.
+  final String? error;
+
+  bool get ok => ms >= 0;
+
+  /// Parses the core's `<ms>|<error>` format.
+  factory DelayResult.parse(String s) {
+    final i = s.indexOf('|');
+    final ms = int.tryParse(i < 0 ? s : s.substring(0, i)) ?? -1;
+    final err = i < 0 ? '' : s.substring(i + 1);
+    return DelayResult(ms, err.isEmpty ? null : err);
+  }
+}
+
 class TrafficInfo {
   const TrafficInfo({this.up = 0, this.down = 0, this.totalUp = 0, this.totalDown = 0});
 
@@ -74,16 +100,23 @@ class VpnPlatform {
     return TrafficInfo(up: v('up'), down: v('down'), totalUp: v('totalUp'), totalDown: v('totalDown'));
   }
 
-  /// Real latency through the running core, ms; -1 on failure.
-  Future<int> delay(String proxyName, String url, {int timeoutMs = 5000}) async =>
-      await _methods.invokeMethod<int>('delay', {'name': proxyName, 'url': url, 'timeoutMs': timeoutMs}) ?? -1;
+  /// Real HTTP round trip through the outbound [tag]. Uses the running core,
+  /// or a temporary one built from [probeConfig] while disconnected.
+  Future<DelayResult> delay(String tag, String url, {int timeoutMs = 5000, String? probeConfig}) async {
+    final r = await _methods.invokeMethod<String>(
+      'delay',
+      {'tag': tag, 'url': url, 'timeoutMs': timeoutMs, 'config': probeConfig ?? ''},
+    );
+    return DelayResult.parse(r ?? '-1|no result');
+  }
 
-  /// Tests all members of [group] now (blocking) so "Auto" picks a live server.
-  Future<bool> healthCheck(String group) async =>
-      await _methods.invokeMethod<bool>('healthCheck', {'group': group}) ?? false;
+  /// Native logs: `core` (Xray) and `events` (VPN service). No keys inside.
+  Future<NativeLogs> logs() async {
+    final m = await _methods.invokeMethod<Map<dynamic, dynamic>>('logs');
+    return NativeLogs('${m?['core'] ?? ''}', '${m?['events'] ?? ''}');
+  }
 
-  Future<bool> select(String group, String name) async =>
-      await _methods.invokeMethod<bool>('select', {'group': group, 'name': name}) ?? false;
+  Future<void> clearLogs() => _methods.invokeMethod('clearLogs');
 
   /// Mihomo parse error for [config], or null if valid.
   Future<String?> validate(String config) => _methods.invokeMethod<String>('validate', {'config': config});

@@ -9,9 +9,9 @@
 |---|---|---|
 | `test/core/link_parser_test.dart` | vless (Reality, Vision, TLS, WS, gRPC, XHTTP), trojan, ss (SIP002, 2022, legacy, obfs), vmess, hysteria2, tuic, ошибки | 24 |
 | `test/core/subscription_parser_test.dart` | base64/url-safe/plain списки, Clash YAML, заголовки панели, определение страны | 13 |
-| `test/core/mihomo_config_test.dart` | TUN, уникальные имена, выбор сервера, маршрутизация, совместимость Reality, генерация эталонных конфигов | 15 |
+| `test/core/xray_config_test.dart` | конвертация серверов в outbound Xray (Reality/Encryption/транспорты), TUN, «Авто» (balancer), маршрутизация, probe-конфиг, эталонные конфиги | 15 |
 | `test/providers/app_controller_test.dart` | импорт, дубликаты, deep links, подписки (обновление, ошибки, удаление), подключение, переключение, задержка, мёртвый сервер, «Авто» | 27 |
-| `vpn_core/tunnelycore/core_test.go` | конфиги, сгенерированные Dart, принимает **настоящий парсер Mihomo**; мусор отклоняется | 3 |
+| `vpn_core/tunnelycore/core_test.go` | конфиги, сгенерированные Dart, принимает **настоящий загрузчик Xray**; мусор отклоняется; журналы; живая проверка серверов (по переменным окружения) | 4 |
 
 Всего Dart: **79**, все проходят (2026-10-27).
 

@@ -36,9 +36,20 @@ class TunnelyVpnService : VpnService() {
     override fun onCreate() {
         super.onCreate()
         VpnState.attach(this)
+        Tunnelycore.setHomeDir(prepareHomeDir().absolutePath)
+    }
+
+    /** Lifecycle line for the in-app log (Settings → Журнал). Never pass keys here. */
+    private fun event(msg: String) {
+        Log.i(TAG, msg)
+        try {
+            Tunnelycore.appendEvent("service: $msg")
+        } catch (_: Throwable) {
+        }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        event("command ${intent?.action ?: "restart-by-system"}")
         when (intent?.action) {
             ACTION_STOP -> worker.execute { stopTunnel(userRequested = true) }
             // null action = restarted by the system (START_STICKY) or always-on VPN.
@@ -51,6 +62,7 @@ class TunnelyVpnService : VpnService() {
     }
 
     override fun onRevoke() {
+        event("VPN permission revoked or another VPN started")
         // Another VPN took over or the user revoked permission in system settings.
         worker.execute { stopTunnel(userRequested = false) }
     }
@@ -66,6 +78,7 @@ class TunnelyVpnService : VpnService() {
         val config = store.load()
         val serverName = store.serverName()
         if (config == null) {
+            event("no saved config")
             fail(getString(R.string.vpn_error_no_config))
             return
         }
@@ -81,17 +94,17 @@ class TunnelyVpnService : VpnService() {
             val pfd = buildInterface()
                 ?: throw IllegalStateException(getString(R.string.vpn_error_permission))
             tun = pfd
+            event("TUN established (fd ${pfd.fd}), server: ${serverName ?: "?"}")
 
-            // Patch the fd as text: re-serializing with org.json would emit "\/",
-            // which is valid JSON but rejected by Mihomo's YAML parser.
-            check(FD_PATTERN.containsMatchIn(config)) { "config has no tun.file-descriptor" }
-            Tunnelycore.start(FD_PATTERN.replace(config, "\"file-descriptor\": ${pfd.fd}"))
+            // Xray's tun inbound reads the fd from the "xray.tun.fd" flag (set by the core).
+            Tunnelycore.startWithFd(config, pfd.fd)
 
             registerNetworkCallback()
             VpnState.update(VpnStateSnapshot(TunnelStatus.CONNECTED, System.currentTimeMillis(), serverName))
+            event("connected")
             notify(buildNotification(getString(R.string.vpn_notification_connected), serverName))
         } catch (e: Exception) {
-            Log.e(TAG, "start failed: ${e.javaClass.simpleName}")
+            event("start failed: ${e.javaClass.simpleName}: ${e.message?.take(300)}")
             closeTunnel()
             fail(getString(R.string.vpn_error_start, e.message?.take(200) ?: e.javaClass.simpleName))
         }
@@ -122,6 +135,7 @@ class TunnelyVpnService : VpnService() {
     }
 
     private fun stopTunnel(userRequested: Boolean) {
+        if (tun != null) event(if (userRequested) "stop requested" else "stopping")
         val wasError = VpnState.current.status == TunnelStatus.ERROR
         if (tun != null) VpnState.update(VpnState.current.copy(status = TunnelStatus.DISCONNECTING))
         unregisterNetworkCallback()
@@ -181,6 +195,7 @@ class TunnelyVpnService : VpnService() {
 
     private fun onNetworkChanged(network: Network?) {
         val changed = currentNetwork != null && network != currentNetwork
+        if (changed || network == null) event(if (network == null) "network lost" else "network changed")
         currentNetwork = network
         setUnderlyingNetworks(network?.let { arrayOf(it) })
         if (changed && network != null) {
@@ -199,22 +214,8 @@ class TunnelyVpnService : VpnService() {
         currentNetwork = null
     }
 
-    /** Mihomo home: rule sets bundled as Flutter assets are copied here once per app version. */
-    private fun prepareHomeDir(): File {
-        val home = File(filesDir, "mihomo")
-        val rules = File(home, "ruleset").apply { mkdirs() }
-        val stamp = File(home, ".assets_version")
-        val version = packageManager.getPackageInfo(packageName, 0).lastUpdateTime.toString()
-        if (!stamp.exists() || stamp.readText() != version) {
-            for (name in listOf("ru-domains.mrs", "ru-ips.mrs")) {
-                assets.open("flutter_assets/assets/ruleset/$name").use { input ->
-                    File(rules, name).outputStream().use { input.copyTo(it) }
-                }
-            }
-            stamp.writeText(version)
-        }
-        return home
-    }
+    /** Xray asset directory (geo files are not used: routing lists are inline in the config). */
+    private fun prepareHomeDir(): File = File(filesDir, "xray").apply { mkdirs() }
 
     private fun startForegroundCompat(n: Notification) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
@@ -263,7 +264,6 @@ class TunnelyVpnService : VpnService() {
         private const val TUN_DNS_V4 = "172.19.0.2"
         private const val TUN_V6 = "fdfe:dcba:9876::1"
         private const val MTU = 9000
-        private val FD_PATTERN = Regex("\"file-descriptor\"\\s*:\\s*-?\\d+")
 
         fun ensureChannel(context: Context) {
             val nm = context.getSystemService(NotificationManager::class.java) ?: return

@@ -18,8 +18,8 @@ import java.util.concurrent.Executors
  * Methods on `tunnely/vpn`:
  *  - `prepare` -> Boolean: asks for VPN permission if needed; true when granted.
  *  - `start` {config, serverName}: stores the config encrypted and starts the service.
- *  - `stop`, `state` -> Map, `traffic` -> Map, `delay` {name, url, timeoutMs} -> Int,
- *    `select` {group, name} -> Boolean, `healthCheck` {group} -> Boolean, `validate` {config} -> String?, `coreVersion` -> String.
+ *  - `stop`, `state` -> Map, `traffic` -> Map, `delay` {tag, url, timeoutMs, config} -> "ms|error",
+ *    `logs` -> {core, events}, `clearLogs`, `validate` {config} -> String?, `coreVersion` -> String.
  * Events on `tunnely/vpn/state`: state maps (see [VpnStateSnapshot.toMap]).
  */
 class VpnBridge(
@@ -29,10 +29,13 @@ class VpnBridge(
     private val methods = MethodChannel(messenger, "tunnely/vpn")
     private val events = EventChannel(messenger, "tunnely/vpn/state")
     private val io = Executors.newSingleThreadExecutor()
+    private val probes = Executors.newFixedThreadPool(6)
     private var pendingPrepare: MethodChannel.Result? = null
     private var stateListener: ((VpnStateSnapshot) -> Unit)? = null
 
     init {
+        // Same directory the service uses, so logs are readable before the first connect.
+        Tunnelycore.setHomeDir(java.io.File(activity.filesDir, "xray").apply { mkdirs() }.absolutePath)
         methods.setMethodCallHandler(this)
         events.setStreamHandler(object : EventChannel.StreamHandler {
             override fun onListen(arguments: Any?, sink: EventChannel.EventSink) {
@@ -55,6 +58,7 @@ class VpnBridge(
         events.setStreamHandler(null)
         stateListener?.let { VpnState.removeListener(it) }
         io.shutdown()
+        probes.shutdown()
     }
 
     override fun onMethodCall(call: MethodCall, result: MethodChannel.Result) {
@@ -91,24 +95,22 @@ class VpnBridge(
                 )
             }
             "delay" -> {
-                val name = call.argument<String>("name") ?: ""
+                val tag = call.argument<String>("tag") ?: ""
                 val url = call.argument<String>("url") ?: ""
                 val timeout = call.argument<Int>("timeoutMs") ?: 5000
-                io.execute {
-                    val d = Tunnelycore.delay(name, url, timeout)
-                    activity.runOnUiThread { result.success(d.toInt()) }
+                val probeConfig = call.argument<String>("config") ?: ""
+                probes.execute {
+                    // "<ms>|<error>"; the core uses the running tunnel, or probeConfig when stopped.
+                    val r = Tunnelycore.delayError(tag, url, timeout, probeConfig)
+                    activity.runOnUiThread { result.success(r) }
                 }
             }
-            "healthCheck" -> {
-                val group = call.argument<String>("group") ?: ""
-                io.execute {
-                    val ok = Tunnelycore.healthCheck(group)
-                    activity.runOnUiThread { result.success(ok) }
-                }
-            }
-            "select" -> {
-                val ok = Tunnelycore.selectProxy(call.argument<String>("group") ?: "", call.argument<String>("name") ?: "")
-                result.success(ok)
+            "logs" -> result.success(
+                mapOf("core" to Tunnelycore.recentLogs(), "events" to Tunnelycore.recentEvents()),
+            )
+            "clearLogs" -> {
+                Tunnelycore.clearLogs()
+                result.success(null)
             }
             "validate" -> {
                 val config = call.argument<String>("config") ?: ""

@@ -6,10 +6,9 @@ import '../core/format.dart';
 import '../providers/app_controller.dart';
 import '../theme/app_theme.dart';
 
-/// Public source code location required by GPL-3.0. Must be set before the
-/// app is distributed (see PROJECT_STATUS.md, "Перед выпуском").
-const String? sourceCodeUrl = null;
-const appVersion = '0.1.1';
+/// Public source code location required by GPL-3.0.
+const sourceCodeUrl = 'https://github.com/mihail130799-jpg/tunnely-vpn';
+const appVersion = '0.2.0';
 
 final _coreVersionProvider = FutureProvider<String>((ref) async {
   try {
@@ -30,7 +29,7 @@ class AboutScreen extends ConsumerWidget {
 
     final diag = <(String, String)>[
       ('Версия приложения', appVersion),
-      ('Ядро', 'Mihomo $core'),
+      ('Ядро', 'Xray $core'),
       ('Состояние VPN', s.vpn.status.name),
       ('Серверов', '${s.servers.length}'),
       ('Подписок', '${s.subscriptions.length}'),
@@ -81,15 +80,7 @@ class AboutScreen extends ConsumerWidget {
                       ),
                     ),
                   const SizedBox(height: 8),
-                  OutlinedButton.icon(
-                    icon: const Icon(Icons.copy_rounded, size: 18),
-                    label: const Text('Скопировать для поддержки'),
-                    onPressed: () {
-                      // Contains no keys, server addresses or subscription URLs.
-                      Clipboard.setData(ClipboardData(text: diag.map((e) => '${e.$1}: ${e.$2}').join('\n')));
-                      ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Скопировано')));
-                    },
-                  ),
+                  const _DiagnosticsButton(),
                 ],
               ),
             ),
@@ -115,8 +106,8 @@ class AboutScreen extends ConsumerWidget {
                   const SizedBox(height: 6),
                   Text(
                     'Tunnely — свободная программа под лицензией GNU GPL v3. '
-                    'Исходный код: ${sourceCodeUrl ?? 'ссылка будет добавлена перед выпуском'}\n'
-                    'Используется ядро Mihomo (MIT) и библиотеки sing (GPL-3.0).',
+                    'Исходный код: $sourceCodeUrl\n'
+                    'Используется ядро Xray-core (MPL-2.0).',
                     style: inter(13, FontWeight.w500, color: tc.muted),
                   ),
                   const SizedBox(height: 8),
@@ -136,4 +127,41 @@ class AboutScreen extends ConsumerWidget {
       ),
     );
   }
+}
+
+/// Runs a real check of every server and copies a support report
+/// (no keys, passwords or subscription URLs) to the clipboard.
+class _DiagnosticsButton extends ConsumerStatefulWidget {
+  const _DiagnosticsButton();
+
+  @override
+  ConsumerState<_DiagnosticsButton> createState() => _DiagnosticsButtonState();
+}
+
+class _DiagnosticsButtonState extends ConsumerState<_DiagnosticsButton> {
+  bool _busy = false;
+
+  Future<void> _run() async {
+    setState(() => _busy = true);
+    try {
+      final report = await ref.read(appControllerProvider.notifier).diagnosticsReport();
+      await Clipboard.setData(ClipboardData(text: report));
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Отчёт скопирован — отправьте его в поддержку')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) => OutlinedButton.icon(
+        icon: _busy
+            ? const SizedBox(width: 16, height: 16, child: CircularProgressIndicator(strokeWidth: 2))
+            : const Icon(Icons.network_check_rounded, size: 18),
+        label: Text(_busy ? 'Проверяем серверы…' : 'Проверить соединение и скопировать отчёт'),
+        onPressed: _busy ? null : _run,
+      );
 }

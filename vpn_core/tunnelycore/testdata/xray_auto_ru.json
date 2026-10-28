@@ -1,0 +1,374 @@
+{
+ "log": {
+  "loglevel": "warning"
+ },
+ "stats": {},
+ "policy": {
+  "levels": {
+   "0": {
+    "handshake": 6,
+    "connIdle": 300,
+    "uplinkOnly": 2,
+    "downlinkOnly": 5
+   }
+  },
+  "system": {
+   "statsInboundUplink": true,
+   "statsInboundDownlink": true,
+   "statsOutboundUplink": true,
+   "statsOutboundDownlink": true
+  }
+ },
+ "dns": {
+  "tag": "dns-internal",
+  "queryStrategy": "UseIP",
+  "servers": [
+   {
+    "address": "https+local://77.88.8.8/dns-query",
+    "domains": [
+     "domain:ru",
+     "domain:su",
+     "domain:xn--p1ai",
+     "domain:xn--d1acj3b",
+     "domain:moscow",
+     "domain:xn--80adxhks",
+     "domain:tatar",
+     "domain:xn--80asehdb",
+     "domain:yandex.net",
+     "domain:yandex.com",
+     "domain:yastatic.net",
+     "domain:yandexcloud.net",
+     "domain:ya.ru",
+     "domain:vk.com",
+     "domain:vk.me",
+     "domain:vkuser.net",
+     "domain:userapi.com",
+     "domain:vk-cdn.net",
+     "domain:mycdn.me",
+     "domain:okcdn.ru",
+     "domain:mail.ru",
+     "domain:imgsmail.ru",
+     "domain:max.ru",
+     "domain:oneme.ru",
+     "domain:avito.st",
+     "domain:wbbasket.ru",
+     "domain:wb.ru",
+     "domain:ozone.ru",
+     "domain:ozon.ru",
+     "domain:sberbank.com",
+     "domain:sber.ru",
+     "domain:tbank.ru",
+     "domain:tinkoff.ru",
+     "domain:vtb.com",
+     "domain:alfabank.com",
+     "domain:gosuslugi.ru",
+     "domain:mos.ru",
+     "domain:nalog.gov.ru",
+     "domain:kaspersky.com",
+     "domain:1c.com"
+    ],
+    "skipFallback": true
+   },
+   "https://1.1.1.1/dns-query",
+   "https://8.8.8.8/dns-query"
+  ]
+ },
+ "inbounds": [
+  {
+   "tag": "tun-in",
+   "protocol": "tun",
+   "settings": {
+    "name": "tun0",
+    "MTU": 9000,
+    "userLevel": 0
+   },
+   "sniffing": {
+    "enabled": true,
+    "destOverride": [
+     "http",
+     "tls",
+     "quic"
+    ],
+    "routeOnly": true
+   }
+  }
+ ],
+ "outbounds": [
+  {
+   "tag": "p-0",
+   "protocol": "vless",
+   "settings": {
+    "vnext": [
+     {
+      "address": "a.example.com",
+      "port": 443,
+      "users": [
+       {
+        "id": "11111111-2222-3333-4444-555555555555",
+        "encryption": "none",
+        "flow": "xtls-rprx-vision"
+       }
+      ]
+     }
+    ]
+   },
+   "streamSettings": {
+    "network": "raw",
+    "security": "reality",
+    "realitySettings": {
+     "serverName": "www.microsoft.com",
+     "fingerprint": "firefox",
+     "publicKey": "SGVsbG9Xb3JsZEhlbGxvV29ybGRIZWxsb1dvcmxkMTI",
+     "shortId": "6ba8",
+     "spiderX": ""
+    }
+   }
+  },
+  {
+   "tag": "p-1",
+   "protocol": "vless",
+   "settings": {
+    "vnext": [
+     {
+      "address": "b.example.com",
+      "port": 443,
+      "users": [
+       {
+        "id": "11111111-2222-3333-4444-555555555555",
+        "encryption": "none"
+       }
+      ]
+     }
+    ]
+   },
+   "streamSettings": {
+    "network": "xhttp",
+    "xhttpSettings": {
+     "path": "/x"
+    },
+    "security": "tls",
+    "tlsSettings": {
+     "serverName": "b.example.com"
+    }
+   }
+  },
+  {
+   "tag": "p-2",
+   "protocol": "vless",
+   "settings": {
+    "vnext": [
+     {
+      "address": "c.example.com",
+      "port": 443,
+      "users": [
+       {
+        "id": "11111111-2222-3333-4444-555555555555",
+        "encryption": "none"
+       }
+      ]
+     }
+    ]
+   },
+   "streamSettings": {
+    "network": "ws",
+    "wsSettings": {
+     "path": "/ws",
+     "host": "c.example.com"
+    },
+    "security": "tls",
+    "tlsSettings": {}
+   }
+  },
+  {
+   "tag": "p-3",
+   "protocol": "trojan",
+   "settings": {
+    "servers": [
+     {
+      "address": "d.example.com",
+      "port": 443,
+      "password": "pw"
+     }
+    ]
+   },
+   "streamSettings": {
+    "network": "raw",
+    "security": "tls",
+    "tlsSettings": {
+     "serverName": "d.example.com"
+    }
+   }
+  },
+  {
+   "tag": "p-4",
+   "protocol": "shadowsocks",
+   "settings": {
+    "servers": [
+     {
+      "address": "e.example.com",
+      "port": 8388,
+      "method": "aes-256-gcm",
+      "password": "pw"
+     }
+    ]
+   },
+   "streamSettings": {
+    "network": "raw",
+    "security": "none"
+   }
+  },
+  {
+   "tag": "direct",
+   "protocol": "freedom"
+  },
+  {
+   "tag": "block",
+   "protocol": "blackhole"
+  },
+  {
+   "tag": "dns-out",
+   "protocol": "dns"
+  }
+ ],
+ "routing": {
+  "domainStrategy": "AsIs",
+  "rules": [
+   {
+    "type": "field",
+    "ip": [
+     "172.19.0.2"
+    ],
+    "port": "853",
+    "outboundTag": "block"
+   },
+   {
+    "type": "field",
+    "inboundTag": [
+     "tun-in"
+    ],
+    "port": "53",
+    "outboundTag": "dns-out"
+   },
+   {
+    "type": "field",
+    "inboundTag": [
+     "dns-internal"
+    ],
+    "balancerTag": "auto"
+   },
+   {
+    "type": "field",
+    "ip": [
+     "10.0.0.0/8",
+     "100.64.0.0/10",
+     "127.0.0.0/8",
+     "169.254.0.0/16",
+     "172.16.0.0/12",
+     "192.168.0.0/16",
+     "224.0.0.0/4",
+     "255.255.255.255/32",
+     "fc00::/7",
+     "fe80::/10",
+     "ff00::/8",
+     "::1/128"
+    ],
+    "outboundTag": "direct"
+   },
+   {
+    "type": "field",
+    "domain": [
+     "domain:local",
+     "domain:lan"
+    ],
+    "outboundTag": "direct"
+   },
+   {
+    "type": "field",
+    "domain": [
+     "domain:ru",
+     "domain:su",
+     "domain:xn--p1ai",
+     "domain:xn--d1acj3b",
+     "domain:moscow",
+     "domain:xn--80adxhks",
+     "domain:tatar",
+     "domain:xn--80asehdb",
+     "domain:yandex.net",
+     "domain:yandex.com",
+     "domain:yastatic.net",
+     "domain:yandexcloud.net",
+     "domain:ya.ru",
+     "domain:vk.com",
+     "domain:vk.me",
+     "domain:vkuser.net",
+     "domain:userapi.com",
+     "domain:vk-cdn.net",
+     "domain:mycdn.me",
+     "domain:okcdn.ru",
+     "domain:mail.ru",
+     "domain:imgsmail.ru",
+     "domain:max.ru",
+     "domain:oneme.ru",
+     "domain:avito.st",
+     "domain:wbbasket.ru",
+     "domain:wb.ru",
+     "domain:ozone.ru",
+     "domain:ozon.ru",
+     "domain:sberbank.com",
+     "domain:sber.ru",
+     "domain:tbank.ru",
+     "domain:tinkoff.ru",
+     "domain:vtb.com",
+     "domain:alfabank.com",
+     "domain:gosuslugi.ru",
+     "domain:mos.ru",
+     "domain:nalog.gov.ru",
+     "domain:kaspersky.com",
+     "domain:1c.com"
+    ],
+    "outboundTag": "direct"
+   },
+   {
+    "type": "field",
+    "ip": [
+     "2.56.24.0/22",
+     "5.8.0.0/16"
+    ],
+    "outboundTag": "direct"
+   },
+   {
+    "type": "field",
+    "network": "tcp,udp",
+    "balancerTag": "auto"
+   }
+  ],
+  "balancers": [
+   {
+    "tag": "auto",
+    "selector": [
+     "p-0",
+     "p-1",
+     "p-2",
+     "p-3",
+     "p-4"
+    ],
+    "strategy": {
+     "type": "leastPing"
+    },
+    "fallbackTag": "p-0"
+   }
+  ]
+ },
+ "observatory": {
+  "subjectSelector": [
+   "p-0",
+   "p-1",
+   "p-2",
+   "p-3",
+   "p-4"
+  ],
+  "probeUrl": "https://www.gstatic.com/generate_204",
+  "probeInterval": "1m",
+  "enableConcurrency": true
+ }
+}

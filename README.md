@@ -3,15 +3,19 @@
 VPN-клиент под собственным брендом для клиентов VPN-сервиса владельца. Пользователь получает ключ или ссылку на подписку, вставляет её одним нажатием и подключается кнопкой-туннелем.
 
 - **Платформа:** Android 7.0+ (APK вне Google Play). iOS отложена — см. PRODUCT_DECISIONS №15.
-- **Ядро:** [Mihomo](https://github.com/MetaCubeX/mihomo) v1.19.33 (Go, через gomobile).
-- **Протоколы:** VLESS (Reality, Vision, XHTTP, WS, gRPC, VLESS Encryption), Trojan, Shadowsocks, VMess, Hysteria2, TUIC.
-- **Лицензия:** GNU GPL v3 (следствие зависимостей Mihomo). Название и логотип Tunnely — бренд владельца.
+- **Ядро:** [Xray-core](https://github.com/XTLS/Xray-core) v26.10.21 (Go, через gomobile) — то же, что у Happ.
+- **Протоколы:** VLESS (Reality, Vision, VLESS Encryption, XHTTP, WS, gRPC, HTTPUpgrade), Trojan, Shadowsocks, VMess.
+- **Лицензия:** GNU GPL v3 (решение владельца). Ядро Xray-core — MPL-2.0. Название и логотип Tunnely — бренд владельца.
+
+## Скачать
+Готовые APK — в разделе **Releases** этого репозитория (для телефонов: `arm64-v8a`). Инструкция по установке — [ANDROID_BUILD.md](ANDROID_BUILD.md).
 
 ## Возможности
 - Импорт: буфер обмена, QR-код, файл, ручной ввод, системные ссылки `vless://`, `trojan://`, … и `tunnely://import?url=<подписка>`.
 - Подписки: base64-список ссылок и Clash/Mihomo YAML; название, трафик и срок из заголовков панели; автообновление раз в сутки.
 - Режим «Авто» (самый быстрый живой сервер), ручной выбор, переключение на лету без переподключения.
-- Проверка, что выбранный сервер реально отвечает («Сервер не отвечает» вместо ложного «Защищено»).
+- Проверка серверов настоящим запросом через ядро; понятная причина сбоя (ключ не принят, тайм-аут, DNS…), распознавание истёкшей подписки.
+- Журнал работы в приложении (приложение, VPN-служба, ядро) и отчёт для поддержки в один тап.
 - Маршрутизация: российские сайты напрямую или весь трафик через VPN; локальная сеть всегда напрямую.
 - Плитка в шторке, виджет на рабочий стол, уведомление с кнопкой «Отключить».
 - Светлая и тёмная тема, анимация «свет в туннеле».
@@ -20,7 +24,7 @@ VPN-клиент под собственным брендом для клиен�
 ## Быстрый старт (Windows)
 ```powershell
 .\scripts\setup_windows.ps1 -Install      # Git, Go, Flutter, gomobile, пакеты Android SDK
-.\scripts\test_project.ps1                # анализ + 79 Dart-тестов + Go-тесты
+.\scripts\test_project.ps1                # анализ + 82 Dart-теста + Go-тесты
 .\scripts\build_android.ps1 -RebuildCore  # ядро + подписанные release APK в releases/<версия>/
 ```
 Подробнее: [WINDOWS_SETUP.md](WINDOWS_SETUP.md), [ANDROID_BUILD.md](ANDROID_BUILD.md).
@@ -28,7 +32,7 @@ VPN-клиент под собственным брендом для клиен�
 ## Структура
 ```
 vpn_client/     Flutter-приложение (lib/), Android-часть (android/app/src/main/kotlin)
-vpn_core/       Go-обёртка Mihomo для gomobile (tunnelycore)
+vpn_core/       Go-обёртка Xray-core для gomobile (tunnelycore)
 scripts/        сборка и проверки (PowerShell + bash для CI)
 releases/       собранные APK (в git только SHA256SUMS)
 secrets/        ключ подписи и тестовые ключи — НЕ в git

@@ -2,11 +2,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/format.dart';
-import '../core/mihomo_config.dart';
+import '../core/xray_config.dart';
 import '../models/subscription.dart';
 import '../providers/app_controller.dart';
 import '../theme/app_theme.dart';
 import 'about_screen.dart';
+import 'logs_screen.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -75,6 +76,14 @@ class SettingsScreen extends ConsumerWidget {
             ),
           ]),
           _Section('Прочее', [
+            ListTile(
+              leading: const Icon(Icons.receipt_long_outlined),
+              title: const Text('Журнал работы'),
+              subtitle: const Text('События приложения, VPN и ядра — для поиска проблем'),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LogsScreen())),
+            ),
+            _Divider(),
             ListTile(
               leading: const Icon(Icons.info_outline_rounded),
               title: const Text('О приложении и диагностика'),

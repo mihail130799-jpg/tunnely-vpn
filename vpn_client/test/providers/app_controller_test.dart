@@ -5,7 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
-import 'package:tunnely/core/mihomo_config.dart';
+import 'package:tunnely/core/xray_config.dart';
 import 'package:tunnely/models/app_settings.dart';
 import 'package:tunnely/providers/app_controller.dart';
 import 'package:tunnely/services/storage.dart';
@@ -23,9 +23,13 @@ class FakeVpn implements VpnPlatform {
   String? startedConfig;
   String? startedServerName;
   int stops = 0;
-  final selects = <(String, String)>[];
+  int starts = 0;
   VpnStateInfo current = VpnStateInfo.disconnected;
-  int delayResult = 42;
+
+  /// Outbound tag -> result; unknown tags succeed with [defaultDelay].
+  final delays = <String, DelayResult>{};
+  DelayResult defaultDelay = const DelayResult(42, null);
+  final probeConfigs = <String?>[];
 
   void emit(VpnStateInfo s) {
     current = s;
@@ -38,6 +42,7 @@ class FakeVpn implements VpnPlatform {
   Future<bool> prepare() async => granted;
   @override
   Future<void> start({required String config, String? serverName}) async {
+    starts++;
     startedConfig = config;
     startedServerName = serverName;
   }
@@ -49,20 +54,15 @@ class FakeVpn implements VpnPlatform {
   @override
   Future<TrafficInfo> traffic() async => const TrafficInfo(up: 1, down: 2);
   @override
-  Future<int> delay(String proxyName, String url, {int timeoutMs = 5000}) async => delayResult;
-  int healthChecks = 0;
-  @override
-  Future<bool> healthCheck(String group) async {
-    healthChecks++;
-    return true;
+  Future<DelayResult> delay(String tag, String url, {int timeoutMs = 5000, String? probeConfig}) async {
+    probeConfigs.add(probeConfig);
+    return delays[tag] ?? defaultDelay;
   }
 
   @override
-  Future<bool> select(String group, String name) async {
-    selects.add((group, name));
-    return true;
-  }
-
+  Future<NativeLogs> logs() async => const NativeLogs('core line', 'service line');
+  @override
+  Future<void> clearLogs() async {}
   @override
   Future<String?> validate(String config) async => validateError;
   @override
@@ -97,7 +97,7 @@ void main() {
       storageProvider.overrideWithValue(storage),
       vpnPlatformProvider.overrideWithValue(vpn),
       subscriptionServiceProvider.overrideWithValue(SubscriptionService(client: client)),
-      tcpPingProvider.overrideWithValue((host, port) async => host.startsWith('a') ? 30 : -1),
+      ruIpsLoaderProvider.overrideWithValue(() async => const ['2.56.24.0/22']),
     ]);
     c.listen(appControllerProvider, (_, _) {}); // keep alive
     await ctrl().init();
@@ -220,13 +220,14 @@ void main() {
     expect(vpn.startedConfig, isNull);
   });
 
-  test('connect starts with selected server first', () async {
+  test('connect with a selected server routes everything to it', () async {
     await ctrl().importText('$_vless\n$_trojan');
     final trojan = st().servers.firstWhere((s) => s.type == 'trojan');
     await ctrl().select(trojan.id);
     await ctrl().connect();
     final cfg = jsonDecode(vpn.startedConfig!) as Map<String, dynamic>;
-    expect(((cfg['proxy-groups'] as List).first as Map)['proxies'].first, 'Нидерланды');
+    final rules = ((cfg['routing'] as Map)['rules'] as List).cast<Map>();
+    expect(rules.last['outboundTag'], 'p-${trojan.id}');
     expect(vpn.startedServerName, 'Нидерланды');
   });
 
@@ -245,33 +246,40 @@ void main() {
     expect(st().message!.text, contains('Не удалось'));
   });
 
-  test('switching server while connected uses core selector', () async {
+  test('switching server while connected restarts the tunnel on it', () async {
     await ctrl().importText('$_vless\n$_trojan');
     await ctrl().connect();
     vpn.emit(VpnStateInfo(VpnStatus.connected, connectedSince: DateTime.now()));
     await Future<void>.delayed(Duration.zero);
+    final starts = vpn.starts;
     final trojan = st().servers.firstWhere((s) => s.type == 'trojan');
     await ctrl().select(trojan.id);
-    expect(vpn.selects.last, (selectorGroup, 'Нидерланды'));
-    await ctrl().select(null);
-    expect(vpn.selects.last, (selectorGroup, autoGroup));
+    expect(vpn.starts, starts + 1);
+    expect(vpn.startedServerName, 'Нидерланды');
   });
 
-  test('latency uses tcp ping when disconnected', () async {
+  test('latency while disconnected uses a probe config (real handshake)', () async {
     await ctrl().importText('$_vless\n$_trojan');
+    final trojan = st().servers.firstWhere((s) => s.type == 'trojan');
+    vpn.delays['p-${trojan.id}'] = const DelayResult(-1, 'context deadline exceeded');
     await ctrl().testLatency();
-    final byType = {for (final s in st().servers) s.type: st().latency[s.id]};
-    expect(byType, {'vless': 30, 'trojan': -1});
+    final vless = st().servers.firstWhere((s) => s.type == 'vless');
+    expect(st().latency[vless.id], 42);
+    expect(st().latency[trojan.id], -1);
+    expect(st().failures[trojan.id], contains('тайм-аут'));
+    expect(vpn.probeConfigs.every((c) => c != null && c.contains('outbounds')), true);
     expect(st().testing, false);
   });
 
-  test('latency uses core delay when connected', () async {
+  test('latency while connected goes through the running core', () async {
     await ctrl().importText(_vless);
     await ctrl().connect();
     vpn.emit(VpnStateInfo(VpnStatus.connected, connectedSince: DateTime.now()));
-    await Future<void>.delayed(Duration.zero);
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    vpn.probeConfigs.clear();
     await ctrl().testLatency();
-    expect(st().latency.values.single, 42);
+    expect(st().latency.values.first, 42);
+    expect(vpn.probeConfigs.every((c) => c == null), true);
   });
 
   test('changing routing while connected reconnects', () async {
@@ -295,17 +303,27 @@ void main() {
     expect(st().selectedId, local);
   });
 
-  test('dead server after switching is reported', () async {
+  test('dead selected server is reported with the reason', () async {
     await ctrl().importText('$_vless\n$_trojan');
-    await ctrl().connect();
-    vpn.emit(VpnStateInfo(VpnStatus.connected, connectedSince: DateTime.now()));
-    await Future<void>.delayed(Duration.zero);
-    vpn.delayResult = -1;
     final trojan = st().servers.firstWhere((s) => s.type == 'trojan');
     await ctrl().select(trojan.id);
+    await ctrl().connect();
+    vpn.delays['p-${trojan.id}'] = const DelayResult(-1, 'EOF');
+    vpn.emit(VpnStateInfo(VpnStatus.connected, connectedSince: DateTime.now()));
+    await Future<void>.delayed(const Duration(milliseconds: 10));
     expect(st().message!.isError, true);
-    expect(st().message!.text, contains('не отвечает'));
+    expect(st().message!.text, contains('ключ не принят'));
     expect(st().latency[trojan.id], -1);
+  });
+
+  test('all servers dead in auto: expired subscription is detected', () async {
+    await ctrl().addSubscription('https://sub.example.com/abc');
+    vpn.defaultDelay = const DelayResult(-1, 'EOF');
+    await ctrl().connect();
+    subStatus = 404;
+    vpn.emit(VpnStateInfo(VpnStatus.connected, connectedSince: DateTime.now()));
+    await Future<void>.delayed(const Duration(milliseconds: 20));
+    expect(st().message!.text, contains('больше не действует'));
   });
 
   test('healthy server after connect is not reported', () async {
@@ -318,14 +336,38 @@ void main() {
     expect(st().latency.values.single, 42);
   });
 
-  test('auto mode runs a health check on connect', () async {
+  test('auto mode probes servers first and starts on the fastest live one', () async {
     await ctrl().addSubscription('https://sub.example.com/abc'); // no server selected -> Auto
     expect(st().isAuto, true);
+    final vless = st().servers.firstWhere((s) => s.type == 'vless');
+    final trojan = st().servers.firstWhere((s) => s.type == 'trojan');
+    vpn.delays['p-${vless.id}'] = const DelayResult(-1, 'EOF');
+    vpn.delays['p-${trojan.id}'] = const DelayResult(120, null);
     await ctrl().connect();
-    vpn.emit(VpnStateInfo(VpnStatus.connected, connectedSince: DateTime.now()));
-    await Future<void>.delayed(const Duration(milliseconds: 10));
-    expect(vpn.healthChecks, 1);
-    expect(st().latency[autoLatencyKey], 42);
+    final cfg = jsonDecode(vpn.startedConfig!) as Map<String, dynamic>;
+    final balancer = ((cfg['routing'] as Map)['balancers'] as List).single as Map;
+    expect(balancer['fallbackTag'], 'p-${trojan.id}');
+    expect(vpn.startedServerName, 'Авто: Нидерланды');
+  });
+
+  test('diagnostics report has no secrets', () async {
+    await ctrl().addSubscription('https://sub.example.com/abc');
+    final r = await ctrl().diagnosticsReport();
+    expect(r, contains('Проверка серверов'));
+    expect(r, isNot(contains(_uuid)));
+    expect(r, isNot(contains('sub.example.com/abc')));
+    expect(r, contains('core line'));
+    expect(r, contains('service line'));
+  });
+
+  test('app log records connects and errors without secrets', () async {
+    await ctrl().importText(_vless);
+    vpn.granted = false;
+    await ctrl().connect();
+    final log = await ctrl().fullLog();
+    expect(log, contains('[import] добавлено 1'));
+    expect(log, contains('разрешите Tunnely'));
+    expect(log, isNot(contains(_uuid)));
   });
 
   test('stableId is deterministic', () {

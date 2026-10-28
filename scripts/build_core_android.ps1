@@ -1,8 +1,6 @@
-﻿# Builds vpn_core (Mihomo wrapper) into an Android AAR via gomobile.
+﻿# Builds vpn_core (Xray-core wrapper) into an Android AAR via gomobile.
 # Output: vpn_core/build/tunnelycore.aar, copied to vpn_client/android/app/libs/.
-# Tag "cmfa" = Mihomo embedded-in-Android-app mode (no /data/system/packages.xml access).
 param(
-    [string]$MihomoVersion = "1.19.33",
     [string]$Targets = "android/arm64,android/arm,android/amd64"
 )
 $ErrorActionPreference = "Stop"
@@ -30,9 +28,10 @@ $ErrorActionPreference = "Continue"
 Push-Location "$root\vpn_core"
 try {
     New-Item -ItemType Directory -Force build | Out-Null
-    $ldflags = "-s -w -buildid= -X github.com/metacubex/mihomo/constant.Version=$MihomoVersion"
+    # -checklinkname=0: Xray's anet dependency links to net internals (as in v2rayNG/libXray builds).
+    $ldflags = "-s -w -buildid= -checklinkname=0"
     gomobile bind "-target=$Targets" -androidapi 24 -javapkg com.tunnely.core -trimpath `
-        -ldflags $ldflags -tags "with_gvisor,cmfa" -o build/tunnelycore.aar ./tunnelycore
+        -ldflags $ldflags -o build/tunnelycore.aar ./tunnelycore
     if ($LASTEXITCODE -ne 0) { throw "gomobile bind failed with exit code $LASTEXITCODE" }
 } finally {
     Pop-Location

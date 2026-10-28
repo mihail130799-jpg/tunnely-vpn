@@ -1,16 +1,16 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart';
+import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/link_parser.dart';
-import '../core/mihomo_config.dart';
+import '../core/xray_config.dart';
 import '../core/subscription_parser.dart';
 import '../models/app_settings.dart';
 import '../models/server_profile.dart';
 import '../models/subscription.dart';
-import '../services/latency_service.dart';
+import '../services/app_log.dart';
 import '../services/storage.dart';
 import '../services/subscription_service.dart';
 import '../services/vpn_platform.dart';
@@ -46,6 +46,7 @@ class AppState {
     this.latency = const {},
     this.testing = false,
     this.refreshing = const {},
+    this.failures = const {},
     this.message,
   });
 
@@ -65,6 +66,9 @@ class AppState {
 
   /// Subscription ids currently refreshing.
   final Set<String> refreshing;
+
+  /// Server id (or [autoLatencyKey]) -> user-facing reason of the last failed check.
+  final Map<String, String> failures;
   final UiMessage? message;
 
   ServerProfile? get selected {
@@ -88,6 +92,7 @@ class AppState {
     Map<String, int>? latency,
     bool? testing,
     Set<String>? refreshing,
+    Map<String, String>? failures,
     UiMessage? message,
   }) =>
       AppState(
@@ -101,6 +106,7 @@ class AppState {
         latency: latency ?? this.latency,
         testing: testing ?? this.testing,
         refreshing: refreshing ?? this.refreshing,
+        failures: failures ?? this.failures,
         message: message ?? this.message,
       );
 }
@@ -109,8 +115,14 @@ final storageProvider = Provider<AppStorage>((ref) => SecureAppStorage());
 final vpnPlatformProvider = Provider<VpnPlatform>((ref) => VpnPlatform());
 final subscriptionServiceProvider = Provider<SubscriptionService>((ref) => SubscriptionService());
 
-/// TCP ping used for latency while disconnected; overridable in tests.
-final tcpPingProvider = Provider<Future<int> Function(String, int)>((ref) => tcpPing);
+/// Loads the CIDR list routed directly in "Russian sites direct" mode.
+final ruIpsLoaderProvider = Provider<Future<List<String>> Function()>((ref) => () async {
+      final text = await rootBundle.loadString('assets/routing/ru_ipv4.txt');
+      return [
+        for (final l in const LineSplitter().convert(text))
+          if (l.trim().isNotEmpty && !l.startsWith('#')) l.trim(),
+      ];
+    });
 
 final appControllerProvider = NotifierProvider<AppController, AppState>(AppController.new);
 
@@ -120,7 +132,8 @@ class AppController extends Notifier<AppState> {
   StreamSubscription<VpnStateInfo>? _vpnSub;
   Timer? _trafficTimer;
   Timer? _refreshTimer;
-  MihomoConfig? _activeConfig;
+  XrayConfig? _activeConfig;
+  List<String>? _ruIps;
 
   AppStorage get _storage => ref.read(storageProvider);
   VpnPlatform get _vpn => ref.read(vpnPlatformProvider);
@@ -137,10 +150,13 @@ class AppController extends Notifier<AppState> {
   }
 
   Future<void> init() async {
+    appLog('app', 'запуск');
     final servers = await _storage.loadServers();
     final subs = await _storage.loadSubscriptions();
     final selected = await _storage.loadSelectedId();
     final settings = await _storage.loadSettings();
+    appLog('app', 'загружено: серверов ${servers.length}, подписок ${subs.length}, '
+        'маршрутизация ${settings.routing.name}, IPv6 ${settings.ipv6}');
     state = state.copyWith(
       loaded: true,
       servers: servers,
@@ -166,7 +182,7 @@ class AppController extends Notifier<AppState> {
 
   void _say(String text, {bool error = false}) {
     // Messages are user-facing texts and never contain keys or URLs.
-    if (kDebugMode) debugPrint('[tunnely] ${error ? 'error' : 'info'}: $text');
+    appLog(error ? 'error' : 'info', text);
     state = state.copyWith(message: UiMessage(text, isError: error));
   }
 
@@ -175,6 +191,10 @@ class AppController extends Notifier<AppState> {
 
   void _onVpnState(VpnStateInfo s) {
     final prev = state.vpn.status;
+    if (s.status != prev) {
+      appLog('vpn', '${prev.name} → ${s.status.name}${s.serverName != null ? ' (${s.serverName})' : ''}'
+          '${s.error != null ? ': ${s.error}' : ''}');
+    }
     state = state.copyWith(vpn: s, traffic: s.status == VpnStatus.connected ? null : TrafficInfo.zero);
     if (s.status == VpnStatus.connected && prev != VpnStatus.connected) {
       unawaited(checkActiveServer());
@@ -253,6 +273,9 @@ class AppController extends Notifier<AppState> {
   }
 
   void _reportImport(ImportResult r) {
+    appLog('import', 'добавлено ${r.added}, дубликатов ${r.duplicates}, ошибок ${r.errors.length}'
+        '${r.subscription != null ? ', подписка «${r.subscription!.name}»' : ''}'
+        '${r.errors.isNotEmpty ? ': ${r.errors.take(3).join('; ')}' : ''}');
     if (r.subscription != null) {
       _say('Подписка «${r.subscription!.name}» добавлена');
     } else if (r.added > 0) {
@@ -347,9 +370,12 @@ class AppController extends Notifier<AppState> {
       state = state.copyWith(servers: servers, clearSelected: !keepSelected);
       await _storage.saveServers(servers);
       if (!keepSelected) await _storage.saveSelectedId(null);
+      appLog('subscription', '«${updated.name}» обновлена: серверов '
+          '${servers.where((s) => s.subscriptionId == id).length}');
       if (!quiet) _say('Подписка «${updated.name}» обновлена');
     } on ImportException catch (e) {
       updated = sub.copyWith(lastError: e.message);
+      appLog('subscription', '«${sub.name}» не обновлена: ${e.message}');
       if (!quiet) _say(e.message, error: true);
     }
     final subs = [for (final s in state.subscriptions) s.id == id ? updated : s];
@@ -401,43 +427,93 @@ class AppController extends Notifier<AppState> {
 
   // ---------------------------------------------------------------- selection & connection
 
-  /// Selects a server (null = automatic). Applies instantly when connected.
+  /// Selects a server (null = automatic). Reconnects when the tunnel is up.
   Future<void> select(String? id) async {
     state = state.copyWith(selectedId: id, clearSelected: id == null);
     await _storage.saveSelectedId(id);
-    if (state.vpn.status == VpnStatus.connected) {
-      final cfg = _activeConfig;
-      final name = id == null ? autoGroup : cfg?.proxyNames[id];
-      final switched = name != null && await _vpn.select(selectorGroup, name);
-      if (!switched) {
-        await connect(); // server not in the running config: reapply
-      } else {
-        await checkActiveServer();
-      }
-    }
+    if (state.vpn.isOn) await connect();
   }
 
-  /// Measures the active server through the running core. The tunnel can be up
-  /// while the server rejects us (wrong keys, server down), so tell the user.
+  Future<List<String>> _loadRuIps() async {
+    if (_ruIps != null) return _ruIps!;
+    try {
+      _ruIps = await ref.read(ruIpsLoaderProvider)();
+    } catch (_) {
+      _ruIps = const [];
+    }
+    return _ruIps!;
+  }
+
+  void _recordResult(String key, DelayResult r) {
+    final who = key == autoLatencyKey
+        ? 'Авто'
+        : (state.servers.where((s) => s.id == key).firstOrNull?.name ?? key);
+    appLog('check', r.ok ? '$who: ${r.ms} мс' : '$who: ошибка: ${r.error ?? '-'}');
+    final failures = Map<String, String>.of(state.failures);
+    if (r.ok) {
+      failures.remove(key);
+    } else {
+      failures[key] = describeFailure(r.error);
+    }
+    state = state.copyWith(latency: {...state.latency, key: r.ms}, failures: failures);
+  }
+
+  /// Measures servers with a real handshake: through the running tunnel when
+  /// connected, otherwise through a temporary core. Returns id -> result.
+  Future<Map<String, DelayResult>> _probe(List<ServerProfile> servers, {int timeoutMs = 5000}) async {
+    final connected = state.vpn.status == VpnStatus.connected && _activeConfig != null;
+    final probeConfig = connected ? null : buildProbeConfig(servers);
+    final out = <String, DelayResult>{};
+    await Future.wait([
+      for (final s in servers)
+        () async {
+          final r = await _vpn.delay(outboundTagFor(s), latencyTestUrl,
+              timeoutMs: timeoutMs, probeConfig: probeConfig);
+          out[s.id] = r;
+          _recordResult(s.id, r);
+        }(),
+    ]);
+    return out;
+  }
+
+  /// Checks the active server through the running core. The tunnel can be up
+  /// while the server rejects us (wrong keys, expired subscription), so tell
+  /// the user why.
   Future<void> checkActiveServer() async {
-    final cfg = _activeConfig;
-    if (cfg == null || state.vpn.status != VpnStatus.connected) return;
+    if (_activeConfig == null || state.vpn.status != VpnStatus.connected) return;
     final id = state.selectedId;
-    final name = id == null ? autoGroup : cfg.proxyNames[id];
-    if (name == null) return;
-    // "Auto" starts on the first member until its first test; test all now so
-    // it moves to a live server right away.
-    if (id == null) await _vpn.healthCheck(autoGroup);
-    final ms = await _vpn.delay(name, latencyTestUrl, timeoutMs: 6000);
-    state = state.copyWith(latency: {...state.latency, id ?? autoLatencyKey: ms});
-    if (ms < 0 && state.vpn.status == VpnStatus.connected && state.selectedId == id) {
-      final who = id == null ? 'Ни один сервер' : 'Сервер «${state.selected?.name ?? ''}»';
-      _say(
-        id == null
-            ? '$who не отвечает. Проверьте подписку или интернет'
-            : '$who не отвечает. Выберите другой сервер или «Авто»',
-        error: true,
-      );
+    final targets = id == null ? state.servers : state.servers.where((s) => s.id == id).toList();
+    if (targets.isEmpty) return;
+    final results = await _probe(targets, timeoutMs: 6000);
+    if (state.vpn.status != VpnStatus.connected || state.selectedId != id) return;
+    final alive = results.values.where((r) => r.ok).toList();
+    if (id == null) {
+      final best = alive.isEmpty ? -1 : alive.map((r) => r.ms).reduce((a, b) => a < b ? a : b);
+      _recordResult(autoLatencyKey,
+          DelayResult(best, alive.isEmpty ? results.values.firstOrNull?.error : null));
+    }
+    if (alive.isNotEmpty) return;
+    final reason = describeFailure(results.values.firstOrNull?.error);
+    _say(
+      id == null
+          ? 'Ни один сервер не отвечает: $reason'
+          : 'Сервер «${state.selected?.name ?? ''}» не отвечает: $reason. Выберите другой сервер или «Авто»',
+      error: true,
+    );
+    await _recheckSubscriptionsAfterFailure();
+  }
+
+  /// When servers reject us, the subscription may have been revoked: refresh
+  /// it and say so plainly if the panel no longer knows it.
+  Future<void> _recheckSubscriptionsAfterFailure() async {
+    for (final sub in state.subscriptions) {
+      await refreshSubscription(sub.id, quiet: true);
+      final updated = state.subscriptions.where((s) => s.id == sub.id).firstOrNull;
+      final err = updated?.lastError;
+      if (err != null && (err.contains('404') || err.contains('403') || err.contains('401'))) {
+        _say('Подписка «${sub.name}» больше не действует. Получите новую ссылку у провайдера', error: true);
+        return;
+      }
     }
   }
 
@@ -465,57 +541,126 @@ class AppController extends Notifier<AppState> {
       _say('Чтобы подключиться, разрешите Tunnely создать VPN', error: true);
       return;
     }
-    final cfg = buildMihomoConfig(
-      servers: state.servers,
-      selected: state.selectedId,
-      tunFd: 0,
-      routing: state.settings.routing,
-      ipv6: state.settings.ipv6,
-    );
+
+    // "Auto": find the fastest live server first so the tunnel starts on it.
+    String? preferred;
+    if (state.selectedId == null && state.vpn.status != VpnStatus.connected) {
+      final results = await _probe(state.servers, timeoutMs: 4000);
+      final alive = results.entries.where((e) => e.value.ok).toList()
+        ..sort((a, b) => a.value.ms.compareTo(b.value.ms));
+      preferred = alive.isEmpty ? null : alive.first.key;
+    }
+
+    final XrayConfig cfg;
+    try {
+      cfg = buildXrayConfig(
+        servers: state.servers,
+        selected: state.selectedId,
+        routing: state.settings.routing,
+        ipv6: state.settings.ipv6,
+        ruIps: state.settings.routing == RoutingMode.ruDirect ? await _loadRuIps() : const [],
+        preferredAuto: preferred,
+        logLevel: state.settings.verboseLogs ? 'info' : 'warning',
+      );
+    } on ArgumentError {
+      _say('Ни один из ваших серверов не поддерживается приложением', error: true);
+      return;
+    }
     final problem = await _vpn.validate(cfg.json);
     if (problem != null) {
       _say('Ошибка в настройках сервера: $problem', error: true);
       return;
     }
     _activeConfig = cfg;
-    final name = state.selected?.name ?? 'Авто: самый быстрый';
+    appLog('connect', 'старт: ${state.selected?.name ?? 'Авто'}, серверов в конфиге ${cfg.outboundTags.length}'
+        '${cfg.unsupported.isNotEmpty ? ', не поддерживаются: ${cfg.unsupported.length}' : ''}'
+        '${preferred != null ? ', лучший по проверке: ${state.servers.firstWhere((s) => s.id == preferred).name}' : ''}');
+    final preferredName = preferred == null ? null : state.servers.firstWhere((s) => s.id == preferred).name;
+    final name = state.selected?.name ?? (preferredName != null ? 'Авто: $preferredName' : 'Авто: самый быстрый');
     await _vpn.start(config: cfg.json, serverName: name);
   }
 
-  Future<void> disconnect() => _vpn.stop();
+  Future<void> disconnect() {
+    appLog('connect', 'отключение по запросу пользователя');
+    return _vpn.stop();
+  }
 
   // ---------------------------------------------------------------- latency
 
   Future<void> testLatency() async {
     if (state.testing || state.servers.isEmpty) return;
     state = state.copyWith(testing: true);
-    final connected = state.vpn.status == VpnStatus.connected;
-    final names = _activeConfig?.proxyNames ?? const {};
-    final ping = ref.read(tcpPingProvider);
-    final results = Map<String, int>.of(state.latency);
-    final queue = List.of(state.servers);
+    try {
+      await _probe(state.servers);
+    } finally {
+      state = state.copyWith(testing: false);
+    }
+  }
 
-    Future<void> worker() async {
-      while (queue.isNotEmpty) {
-        final s = queue.removeLast();
-        final name = names[s.id];
-        final ms = connected && name != null
-            ? await _vpn.delay(name, latencyTestUrl)
-            : await ping(s.server, s.port);
-        results[s.id] = ms;
-        state = state.copyWith(latency: Map.of(results));
-      }
+  /// Report for support: versions, modes and per-server check results.
+  /// Contains no keys, passwords or subscription URLs.
+  Future<String> diagnosticsReport() async {
+    final b = StringBuffer()
+      ..writeln('Tunnely — диагностика')
+      ..writeln('Ядро: Xray ${await _safe(_vpn.coreVersion)}')
+      ..writeln('VPN: ${state.vpn.status.name}${state.vpn.error != null ? ' (${state.vpn.error})' : ''}')
+      ..writeln('Маршрутизация: ${state.settings.routing.name}, IPv6: ${state.settings.ipv6}')
+      ..writeln('Подписок: ${state.subscriptions.length}, серверов: ${state.servers.length}');
+    for (final sub in state.subscriptions) {
+      b.writeln('Подписка «${sub.name}»: ${sub.lastError ?? 'обновлена ${sub.updatedAt?.toIso8601String() ?? '-'}'}');
+    }
+    b.writeln('--- Проверка серверов');
+    await _probe(state.servers, timeoutMs: 6000);
+    for (final s in state.servers) {
+      final ms = state.latency[s.id];
+      b.writeln('${s.name} [${s.protocolLabel}]: '
+          '${ms != null && ms >= 0 ? '$ms мс' : (state.failures[s.id] ?? 'нет данных')}');
+    }
+    b.write(await fullLog(tailLines: 60));
+    return b.toString();
+  }
+
+  /// All logs (app, VPN service, Xray core), newest lines last.
+  Future<String> fullLog({int tailLines = 400}) async {
+    String tail(String s) {
+      final l = s.trim().isEmpty ? <String>[] : s.trim().split('\n');
+      return l.sublist(l.length > tailLines ? l.length - tailLines : 0).join('\n');
     }
 
-    await Future.wait(List.generate(8, (_) => worker()));
-    state = state.copyWith(testing: false);
+    NativeLogs native = const NativeLogs('', '');
+    try {
+      native = await _vpn.logs();
+    } catch (_) {}
+    return '--- Приложение\n${tail(await AppLog.instance.read())}\n'
+        '--- VPN-служба\n${tail(native.events)}\n'
+        '--- Ядро Xray\n${tail(native.core)}\n';
+  }
+
+  Future<void> clearLogs() async {
+    await AppLog.instance.clear();
+    try {
+      await _vpn.clearLogs();
+    } catch (_) {}
+    appLog('app', 'журнал очищен');
+  }
+
+  Future<String> _safe(Future<String> Function() f) async {
+    try {
+      return await f();
+    } catch (_) {
+      return '?';
+    }
   }
 
   // ---------------------------------------------------------------- settings
 
   Future<void> updateSettings(AppSettings s) async {
+    appLog('settings', 'маршрутизация ${s.routing.name}, IPv6 ${s.ipv6}, подробный журнал ${s.verboseLogs}, '
+        'автоподключение ${s.connectOnLaunch}');
     final reconnect = state.vpn.status == VpnStatus.connected &&
-        (s.routing != state.settings.routing || s.ipv6 != state.settings.ipv6);
+        (s.routing != state.settings.routing ||
+            s.ipv6 != state.settings.ipv6 ||
+            s.verboseLogs != state.settings.verboseLogs);
     state = state.copyWith(settings: s);
     await _storage.saveSettings(s);
     if (reconnect) await connect();
@@ -524,6 +669,26 @@ class AppController extends Notifier<AppState> {
 
 /// Key in [AppState.latency] for the automatic group.
 const autoLatencyKey = '';
+
+/// Turns a core error into a short Russian explanation for users.
+String describeFailure(String? error) {
+  final e = (error ?? '').toLowerCase();
+  if (e.isEmpty) return 'нет ответа';
+  if (e.contains('reality') || e.contains('x509') || e.contains('certificate') || e.contains('tls:')) {
+    return 'сервер отклонил защищённое подключение';
+  }
+  if (e.contains('no such host') || e.contains('lookup') || e.contains('dns')) {
+    return 'не удаётся найти адрес сервера';
+  }
+  if (e.contains('refused')) return 'сервер отказал в подключении';
+  if (e.contains('unreachable') || e.contains('no route')) return 'сервер недоступен из этой сети';
+  if (e.contains('eof') || e.contains('reset') || e.contains('closed') || e.contains('read response')) {
+    return 'ключ не принят сервером (подписка могла истечь)';
+  }
+  if (e.contains('timeout') || e.contains('deadline')) return 'сервер не отвечает (тайм-аут)';
+  return error!.length > 80 ? '${error.substring(0, 80)}…' : error;
+}
+
 
 /// Deterministic short id (FNV-1a 64-bit, hex) so servers keep their ids
 /// across subscription refreshes.

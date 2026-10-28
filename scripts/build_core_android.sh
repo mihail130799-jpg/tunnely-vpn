@@ -1,10 +1,9 @@
 #!/usr/bin/env bash
-# Builds vpn_core (Mihomo wrapper) into an Android AAR via gomobile (Linux/macOS/CI).
+# Builds vpn_core (Xray-core wrapper) into an Android AAR via gomobile (Linux/macOS/CI).
 # Windows: use build_core_android.ps1. Requires Go, JDK 17+, ANDROID_HOME with an NDK.
-# Tag "cmfa" = Mihomo embedded-in-Android-app mode (no /data/system/packages.xml access).
 set -euo pipefail
+# -checklinkname=0: Xray's anet dependency links to net internals (as in v2rayNG/libXray builds).
 
-MIHOMO_VERSION="${MIHOMO_VERSION:-1.19.33}"
 TARGETS="${TARGETS:-android/arm64,android/arm,android/amd64}"
 ROOT="$(cd "$(dirname "$0")/.." && pwd)"
 
@@ -24,9 +23,9 @@ command -v gomobile >/dev/null || {
 
 cd "$ROOT/vpn_core"
 mkdir -p build
+# -checklinkname=0: Xray's anet dependency links to net internals (as in v2rayNG/libXray builds).
 gomobile bind "-target=$TARGETS" -androidapi 24 -javapkg com.tunnely.core -trimpath \
-  -ldflags "-s -w -buildid= -X github.com/metacubex/mihomo/constant.Version=$MIHOMO_VERSION" \
-  -tags "with_gvisor,cmfa" -o build/tunnelycore.aar ./tunnelycore
+  -ldflags "-s -w -buildid= -checklinkname=0" -o build/tunnelycore.aar ./tunnelycore
 
 mkdir -p "$ROOT/vpn_client/android/app/libs"
 cp build/tunnelycore.aar "$ROOT/vpn_client/android/app/libs/"

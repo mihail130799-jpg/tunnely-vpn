@@ -3,45 +3,54 @@
 ```
 ┌──────────────────────── Flutter (Dart) ────────────────────────┐
 │ screens/  HomeScreen · ServersPanel · ImportSheet · Settings   │
+│           LogsScreen (журнал) · About (диагностика)            │
 │ widgets/  TunnelButton (CustomPainter, анимации)               │
 │ providers/AppController (Riverpod Notifier) ── AppState        │
-│ core/     link_parser · subscription_parser · mihomo_config     │
+│ core/     link_parser · subscription_parser · xray_config       │
 │ services/ VpnPlatform (каналы) · SubscriptionService (HTTP)     │
-│           SecureAppStorage (Keystore) · tcpPing                 │
+│           SecureAppStorage (Keystore) · AppLog (журнал)         │
 └───────────────┬───────────── MethodChannel "tunnely/vpn" ──────┘
                 │              EventChannel  "tunnely/vpn/state"
 ┌───────────────▼──────────── Android (Kotlin) ──────────────────┐
 │ VpnBridge          каналы ⇄ сервис; запрос разрешения VPN       │
-│ TunnelyVpnService  VpnService + foreground; TUN → fd → ядро     │
+│ TunnelyVpnService  VpnService + foreground; TUN fd → ядро       │
 │ ConfigStore        конфиг ядра, AES-GCM ключом Android Keystore │
 │ VpnState           единое состояние → UI, плитка, виджет        │
 │ TunnelTileService · TunnelWidget · QuickToggle                  │
 └───────────────┬────────────────── JNI (gomobile) ──────────────┘
 ┌───────────────▼──────────── vpn_core (Go) ─────────────────────┐
-│ tunnelycore: Start/Stop/Validate/TrafficNow/Delay/HealthCheck/  │
-│              SelectProxy/CloseAllConnections, Protector, Logs   │
-│ Mihomo v1.19.33 (теги with_gvisor, cmfa): TUN gVisor, DNS,      │
-│ правила, VLESS/Reality/…                                        │
+│ tunnelycore: StartWithFd/Stop/Validate/TrafficNow/DelayError/   │
+│              RecentLogs/RecentEvents/AppendEvent, Protector     │
+│ Xray-core v26.10.21: inbound tun (fd через "xray.tun.fd"),      │
+│ VLESS/Reality/Vision/Encryption/XHTTP, Trojan, SS, VMess,       │
+│ DNS, routing, balancer leastPing + observatory, stats           │
 └────────────────────────────────────────────────────────────────┘
 ```
 
 ## Поток подключения
 1. Пользователь нажимает туннель → `AppController.connect()`.
 2. `VpnPlatform.prepare()` — системный запрос разрешения VPN (один раз).
-3. `buildMihomoConfig()` строит конфиг (JSON — валидный YAML для Mihomo): прокси, группы `PROXY` (select) и `Авто` (url-test), DNS fake-ip через DoH, правила, `tun.file-descriptor: 0`.
-4. `validate()` прогоняет конфиг настоящим парсером Mihomo до запуска.
-5. `start()` → Kotlin шифрует конфиг (`ConfigStore`) и запускает `TunnelyVpnService`.
-6. Сервис создаёт TUN (172.19.0.1/30, fdfe:dcba:9876::1/126, MTU 9000, DNS 172.19.0.2), исключает собственное приложение из туннеля, подставляет fd в текст конфига (без пересериализации) и вызывает `Tunnelycore.start`.
-7. Если Mihomo не поднял TUN, `Start` возвращает ошибку — «Защищено» не показывается без рабочего туннеля.
-8. После CONNECTED приложение делает `HealthCheck(Авто)` (в режиме «Авто») и `Delay` выбранного сервера; мёртвый сервер → предупреждение.
+3. Режим «Авто»: все серверы проверяются настоящим HTTP-запросом через временное ядро (`buildProbeConfig`), самый быстрый живой становится `fallbackTag` балансировщика.
+4. `buildXrayConfig()` строит JSON-конфиг Xray: inbound `tun` со сниффингом, outbound'ы серверов, `direct`/`block`/`dns-out`, DNS, правила, балансировщик `auto` (leastPing) + observatory — либо прямой маршрут на выбранный сервер.
+5. `validate()` прогоняет конфиг через загрузчик Xray до запуска.
+6. `start()` → Kotlin шифрует конфиг (`ConfigStore`) и запускает `TunnelyVpnService`.
+7. Сервис создаёт TUN (172.19.0.1/30, fdfe:dcba:9876::1/126, MTU 9000, DNS 172.19.0.2), исключает собственное приложение из туннеля и вызывает `Tunnelycore.startWithFd(config, fd)`.
+8. После CONNECTED приложение проверяет активный сервер (или все в «Авто») через работающее ядро. Если сервер не отвечает — сообщение с причиной; если не отвечает ни один — подписка обновляется, и при 404/403 пользователь узнаёт, что подписка больше не действует.
+
+## Журнал
+- **Приложение** (`AppLog`, файл в app-support): запуск, импорт, проверки серверов, подключения, ошибки, настройки.
+- **VPN-служба** (`events.log`): команды, TUN, старт/стоп ядра, смена сети, отзыв разрешения.
+- **Ядро** (`core.log`): журнал ошибок Xray (warning; в подробном режиме — info).
+- Экран «Настройки → Журнал работы»; «Скопировать всё» и «Проверить соединение и скопировать отчёт».
+- В журнал никогда не пишутся ключи, UUID, пароли, ссылки подписок.
 
 ## Почему так
+- **Ядро Xray** — то же, что у Happ и на серверах владельца (Reality, VLESS Encryption, XHTTP). Отпечаток из ключа используется как есть. См. ADR 0003.
 - **Конфиг хранится в Kotlin** (зашифрованным): плитка и виджет запускают VPN без Flutter-интерфейса.
-- **Свой процесс не идёт через туннель** (`addDisallowedApplication` + `protect`): загрузка подписок и сокеты ядра не зацикливаются.
-- **Смена сети:** `NetworkCallback` → `setUnderlyingNetworks` + `CloseAllConnections`, приложения быстро переподключаются через новую сеть.
-- **Переключение сервера на лету:** `SelectProxy(PROXY, имя)` без перезапуска туннеля; имена серверов детерминированы (`MihomoConfig.proxyNames`).
+- **Свой процесс не идёт через туннель** (`addDisallowedApplication` + `protect` через `RegisterDialerController`): загрузка подписок и сокеты ядра не зацикливаются.
+- **Смена сервера** — перезапуск ядра с новым маршрутом (TUN пересоздаётся, ~1 с).
 - **Стабильные id серверов** (FNV-1a от тип|адрес|порт|секрет) — выбор и задержки переживают обновление подписки.
-- **Совместимость Reality** (`withRealityCompat`): MLKEM768 + отпечаток chrome — см. VPN_PROTOCOLS.md.
+- **Скорость** — по счётчикам outbound (tun-inbound занижает).
 
 ## Данные
 | Что | Где |
@@ -49,9 +58,10 @@
 | Серверы, подписки (содержат ключи) | flutter_secure_storage → Android Keystore |
 | Выбранный сервер, настройки | SharedPreferences (без секретов) |
 | Конфиг для сервиса/плитки/виджета | `noBackupFilesDir/active_config.bin`, AES-256-GCM, ключ в Keystore |
-| Rule-set «Россия» | assets → `filesDir/mihomo/ruleset` при обновлении приложения |
-Резервное копирование данных приложения отключено (`allowBackup=false`, data extraction rules).
+| Журналы | `filesDir/xray/{core,events}.log`, app-support `app.log` (до ~0,5 МБ каждый) |
+| Российские IP для маршрутизации | asset `assets/routing/ru_ipv4.txt` (ipverse, CC0) |
 
 ## Решения (ADR)
-- `docs/adr/0001-vpn-core.md` — Xray (отклонено владельцем, запасной вариант)
-- `docs/adr/0002-vpn-core-mihomo.md` — Mihomo, GPL, совместимость с новыми Xray-серверами
+- `docs/adr/0001-vpn-core.md` — первичный выбор Xray (заменён владельцем на Mihomo)
+- `docs/adr/0002-vpn-core-mihomo.md` — Mihomo (заменено)
+- `docs/adr/0003-vpn-core-xray.md` — **текущее ядро Xray-core**

@@ -16,17 +16,18 @@
 
 ## У владельца серверов
 
-### `REALITY authentication failed` (Mihomo), хотя Happ/v2rayNG работают
-1. Новые Xray-серверы требуют ключ X25519MLKEM768 — Tunnely включает его сам (VPN_PROTOCOLS.md). Если ошибка осталась:
-2. На сервере Xray ≥ 26.7.11 по умолчанию `minClientVer = 26.3.27`, а Mihomo сообщает 1.8.2. Решение на сервере: в `realitySettings` указать `"minClientVer": "1.8.2"` (в 3x-ui: inbound → Reality → Min Client Ver).
-3. Проверить, что `pbk`, `sid`, `sni` в подписке совпадают с настройками узла.
+### Как понять причину
+«Настройки → Журнал работы» или «О приложении → Проверить соединение и скопировать отчёт». В отчёте для каждого сервера — задержка или причина:
+- «ключ не принят сервером (подписка могла истечь)» — сервер оборвал соединение после рукопожатия: ключ (UUID) удалён/отключён в панели;
+- «сервер отклонил защищённое подключение» — не совпадают параметры Reality/TLS (pbk, sid, sni);
+- «сервер не отвечает (тайм-аут)» / «недоступен из этой сети» — сервер выключен или блокируется в сети пользователя;
+- «не удаётся найти адрес сервера» — DNS.
 
 ## У разработчика
 
 | Ошибка | Решение |
 |---|---|
-| `yaml: found unknown escape character` при старте | Конфиг пересериализован с `\/` (org.json). Подставлять fd в текст (`FD_PATTERN`), не через JSONObject. |
-| `build android rules: read packages list … permission denied` | Ядро собрано без тега `cmfa`. Собирать скриптом `build_core_android.*`. |
+| `link: github.com/wlynxg/anet: invalid reference to net.zoneCache` | Сборка Xray для Android требует `-ldflags=-checklinkname=0` (есть в скриптах `build_core_android.*`). |
 | `[CXX1101] NDK … did not have a source.properties` | Битая загрузка NDK: удалить папку `ndk\<версия>` и поставить заново через sdkmanager. |
 | `Could not close incremental caches` (Kotlin) | Параллельные сборки или разные диски: `flutter clean`, `kotlin.incremental=false`. |
 | `PathExistsException … flutter_assets` | Две сборки одновременно. Дождаться одной и повторить. |
