@@ -30,6 +30,14 @@ class VpnStateInfo {
   }
 }
 
+class InstalledApp {
+  const InstalledApp({required this.package, required this.label, this.system = false, this.icon});
+  final String package;
+  final String label;
+  final bool system;
+  final Uint8List? icon;
+}
+
 class NativeLogs {
   const NativeLogs(this.core, this.events);
   final String core;
@@ -83,8 +91,26 @@ class VpnPlatform {
   /// Shows the system VPN permission dialog when needed. True if granted.
   Future<bool> prepare() async => await _methods.invokeMethod<bool>('prepare') ?? false;
 
-  Future<void> start({required String config, String? serverName}) =>
-      _methods.invokeMethod('start', {'config': config, 'serverName': serverName});
+  Future<void> start({required String config, String? serverName, List<String> bypassApps = const []}) =>
+      _methods.invokeMethod('start', {'config': config, 'serverName': serverName, 'bypassApps': bypassApps});
+
+  /// Launcher apps' package names (fast).
+  Future<List<String>> installedPackages() async =>
+      (await _methods.invokeListMethod<String>('installedPackages')) ?? const [];
+
+  /// Launcher apps with labels and icons, sorted by label (for the picker).
+  Future<List<InstalledApp>> installedApps() async {
+    final list = await _methods.invokeListMethod<Map<dynamic, dynamic>>('installedApps') ?? const [];
+    return [
+      for (final m in list)
+        InstalledApp(
+          package: '${m['package']}',
+          label: '${m['label']}',
+          system: m['system'] == true,
+          icon: m['icon'] as Uint8List?,
+        ),
+    ];
+  }
 
   Future<void> stop() => _methods.invokeMethod('stop');
 
@@ -122,4 +148,15 @@ class VpnPlatform {
   Future<String?> validate(String config) => _methods.invokeMethod<String>('validate', {'config': config});
 
   Future<String> coreVersion() async => await _methods.invokeMethod<String>('coreVersion') ?? '?';
+
+  /// Installed version name and the preferred ABI (e.g. "arm64-v8a").
+  Future<({String version, String abi})> appInfo() async {
+    final m = await _methods.invokeMethod<Map<dynamic, dynamic>>('appInfo');
+    return (version: '${m?['version'] ?? ''}', abi: '${m?['abi'] ?? ''}');
+  }
+
+  /// Opens the system installer for [path]. Returns false when the user first
+  /// has to allow installs from Tunnely (the settings screen is opened instead).
+  Future<bool> installApk(String path) async =>
+      await _methods.invokeMethod<String>('installApk', {'path': path}) == 'started';
 }

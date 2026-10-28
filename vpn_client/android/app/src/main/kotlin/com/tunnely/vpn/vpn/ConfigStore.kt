@@ -18,8 +18,10 @@ import javax.crypto.spec.GCMParameterSpec
 class ConfigStore(context: Context) {
     private val file = File(context.noBackupFilesDir, "active_config.bin")
     private val metaFile = File(context.noBackupFilesDir, "active_server.txt")
+    private val bypassFile = File(context.noBackupFilesDir, "bypass_apps.txt")
 
-    fun save(config: String, serverName: String?) {
+    fun save(config: String, serverName: String?, bypassApps: List<String> = emptyList()) {
+        bypassFile.writeText(bypassApps.joinToString("\n"))
         val cipher = Cipher.getInstance(TRANSFORMATION)
         cipher.init(Cipher.ENCRYPT_MODE, key())
         val encrypted = cipher.doFinal(config.toByteArray(Charsets.UTF_8))
@@ -55,11 +57,16 @@ class ConfigStore(context: Context) {
     /** Cheap check without decrypting (for widget rendering). */
     fun hasConfig(): Boolean = file.exists()
 
+    /** Packages that must not use the tunnel (Russian apps, user's choice). */
+    fun bypassApps(): List<String> =
+        bypassFile.takeIf { it.exists() }?.readLines()?.map { it.trim() }?.filter { it.isNotEmpty() } ?: emptyList()
+
     fun serverName(): String? = metaFile.takeIf { it.exists() }?.readText()?.ifEmpty { null }
 
     fun clear() {
         file.delete()
         metaFile.delete()
+        bypassFile.delete()
     }
 
     private fun key(): SecretKey {

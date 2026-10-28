@@ -1,10 +1,12 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show setEquals;
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/link_parser.dart';
+import '../core/russian_apps.dart';
 import '../core/xray_config.dart';
 import '../core/subscription_parser.dart';
 import '../models/app_settings.dart';
@@ -577,7 +579,47 @@ class AppController extends Notifier<AppState> {
         '${preferred != null ? ', лучший по проверке: ${state.servers.firstWhere((s) => s.id == preferred).name}' : ''}');
     final preferredName = preferred == null ? null : state.servers.firstWhere((s) => s.id == preferred).name;
     final name = state.selected?.name ?? (preferredName != null ? 'Авто: $preferredName' : 'Авто: самый быстрый');
-    await _vpn.start(config: cfg.json, serverName: name);
+    final bypass = await _bypassApps();
+    if (bypass.isNotEmpty) appLog('connect', 'приложения без VPN: ${bypass.length}');
+    await _vpn.start(config: cfg.json, serverName: name, bypassApps: bypass.toList()..sort());
+  }
+
+  /// Packages excluded from the tunnel for the current settings.
+  Future<Set<String>> _bypassApps() async {
+    final st = state.settings;
+    final auto = st.foreignOnly && st.russianAppsDirect;
+    var installed = const <String>[];
+    if (auto) {
+      try {
+        installed = await _vpn.installedPackages();
+      } catch (_) {}
+    }
+    return bypassPackages(
+      installed: installed,
+      autoRussian: auto,
+      alwaysDirect: st.alwaysDirectApps,
+      alwaysVpn: st.alwaysVpnApps,
+    );
+  }
+
+  /// Whether [package] currently works without VPN (for the app picker).
+  bool appIsDirect(String package) {
+    final st = state.settings;
+    if (st.alwaysVpnApps.contains(package)) return false;
+    if (st.alwaysDirectApps.contains(package)) return true;
+    return st.foreignOnly && st.russianAppsDirect && isRussianApp(package);
+  }
+
+  /// Sets an app to work with or without VPN, recording only deviations from
+  /// the automatic Russian-apps rule.
+  Future<void> setAppDirect(String package, bool direct) async {
+    final st = state.settings;
+    final auto = st.foreignOnly && st.russianAppsDirect && isRussianApp(package);
+    final alwaysDirect = {...st.alwaysDirectApps}..remove(package);
+    final alwaysVpn = {...st.alwaysVpnApps}..remove(package);
+    if (direct && !auto) alwaysDirect.add(package);
+    if (!direct && auto) alwaysVpn.add(package);
+    await updateSettings(st.copyWith(alwaysDirectApps: alwaysDirect, alwaysVpnApps: alwaysVpn));
   }
 
   Future<void> disconnect() {
@@ -655,12 +697,17 @@ class AppController extends Notifier<AppState> {
   // ---------------------------------------------------------------- settings
 
   Future<void> updateSettings(AppSettings s) async {
-    appLog('settings', 'маршрутизация ${s.routing.name}, IPv6 ${s.ipv6}, подробный журнал ${s.verboseLogs}, '
+    appLog('settings', 'режим ${s.foreignOnly ? 'только зарубежные' : 'весь трафик'}, '
+        'российские приложения напрямую ${s.russianAppsDirect}, вручную без VPN ${s.alwaysDirectApps.length}, '
+        'вручную через VPN ${s.alwaysVpnApps.length}, IPv6 ${s.ipv6}, подробный журнал ${s.verboseLogs}, '
         'автоподключение ${s.connectOnLaunch}');
     final reconnect = state.vpn.status == VpnStatus.connected &&
         (s.routing != state.settings.routing ||
             s.ipv6 != state.settings.ipv6 ||
-            s.verboseLogs != state.settings.verboseLogs);
+            s.verboseLogs != state.settings.verboseLogs ||
+            s.russianAppsDirect != state.settings.russianAppsDirect ||
+            !setEquals(s.alwaysDirectApps, state.settings.alwaysDirectApps) ||
+            !setEquals(s.alwaysVpnApps, state.settings.alwaysVpnApps));
     state = state.copyWith(settings: s);
     await _storage.saveSettings(s);
     if (reconnect) await connect();

@@ -3,11 +3,14 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import '../core/format.dart';
 import '../core/xray_config.dart';
+import '../models/app_settings.dart';
 import '../models/subscription.dart';
 import '../providers/app_controller.dart';
 import '../theme/app_theme.dart';
 import 'about_screen.dart';
+import 'apps_screen.dart';
 import 'logs_screen.dart';
+import 'update_widgets.dart';
 
 class SettingsScreen extends ConsumerWidget {
   const SettingsScreen({super.key});
@@ -25,21 +28,48 @@ class SettingsScreen extends ConsumerWidget {
       body: ListView(
         padding: const EdgeInsets.fromLTRB(16, 4, 16, 32),
         children: [
+          _Section('Режим VPN', [
+            RadioGroup<RoutingMode>(
+              groupValue: st.routing,
+              onChanged: (v) => ctrl.updateSettings(st.copyWith(routing: v)),
+              child: const Column(
+                children: [
+                  RadioListTile<RoutingMode>(
+                    title: Text('Только зарубежные сервисы'),
+                    subtitle: Text('Российские сайты и приложения работают напрямую, '
+                        'зарубежные — через VPN. Рекомендуется'),
+                    value: RoutingMode.ruDirect,
+                  ),
+                  RadioListTile<RoutingMode>(
+                    title: Text('Весь трафик через VPN'),
+                    subtitle: Text('Все сайты и приложения идут через сервер'),
+                    value: RoutingMode.global,
+                  ),
+                ],
+              ),
+            ),
+            _Divider(),
+            SwitchListTile(
+              title: const Text('Российские приложения без VPN'),
+              subtitle: const Text('Банки, Госуслуги, VK, Яндекс, маркетплейсы, операторы — '
+                  'работают напрямую и не видят VPN'),
+              value: st.russianAppsDirect && st.foreignOnly,
+              onChanged: st.foreignOnly ? (v) => ctrl.updateSettings(st.copyWith(russianAppsDirect: v)) : null,
+            ),
+            _Divider(),
+            ListTile(
+              title: const Text('Выбрать приложения'),
+              subtitle: Text(_appsSummary(st)),
+              trailing: const Icon(Icons.chevron_right_rounded),
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AppsScreen())),
+            ),
+          ]),
           _Section('Подключение', [
             SwitchListTile(
               title: const Text('Подключаться при запуске'),
               subtitle: const Text('Сразу включать VPN, когда открываете Tunnely'),
               value: st.connectOnLaunch,
               onChanged: (v) => ctrl.updateSettings(st.copyWith(connectOnLaunch: v)),
-            ),
-            _Divider(),
-            ListTile(
-              title: const Text('Маршрутизация'),
-              subtitle: Text(st.routing == RoutingMode.ruDirect
-                  ? 'Российские сайты напрямую, остальное через VPN'
-                  : 'Весь трафик через VPN'),
-              trailing: const Icon(Icons.chevron_right_rounded),
-              onTap: () => _pickRouting(context, ref),
             ),
             _Divider(),
             SwitchListTile(
@@ -75,6 +105,7 @@ class SettingsScreen extends ConsumerWidget {
               ),
             ),
           ]),
+          const _Section('Обновление приложения', [UpdateTiles()]),
           _Section('Прочее', [
             ListTile(
               leading: const Icon(Icons.receipt_long_outlined),
@@ -96,33 +127,10 @@ class SettingsScreen extends ConsumerWidget {
     );
   }
 
-  Future<void> _pickRouting(BuildContext context, WidgetRef ref) async {
-    final st = ref.read(appControllerProvider).settings;
-    final v = await showModalBottomSheet<RoutingMode>(
-      context: context,
-      builder: (context) => SafeArea(
-        child: RadioGroup<RoutingMode>(
-          groupValue: st.routing,
-          onChanged: (v) => Navigator.pop(context, v),
-          child: const Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              RadioListTile<RoutingMode>(
-                title: Text('Российские сайты напрямую'),
-                subtitle: Text('Банки, Госуслуги и другие сайты РФ работают без VPN. Рекомендуется'),
-                value: RoutingMode.ruDirect,
-              ),
-              RadioListTile<RoutingMode>(
-                title: Text('Весь трафик через VPN'),
-                subtitle: Text('Все сайты и приложения идут через сервер'),
-                value: RoutingMode.global,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-    if (v != null) await ref.read(appControllerProvider.notifier).updateSettings(st.copyWith(routing: v));
+  static String _appsSummary(AppSettings st) {
+    final manual = st.alwaysDirectApps.length + st.alwaysVpnApps.length;
+    final base = st.foreignOnly && st.russianAppsDirect ? 'Российские — без VPN' : 'Все через VPN';
+    return manual == 0 ? '$base. Настроить вручную' : '$base, вручную изменено: $manual';
   }
 }
 

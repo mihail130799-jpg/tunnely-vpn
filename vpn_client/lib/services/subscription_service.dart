@@ -22,7 +22,7 @@ class SubscriptionService {
   /// Panels (Marzban, Remnawave, 3x-ui) pick the response format by User-Agent.
   /// A neutral UA gets the standard base64 list of share links (vless:// etc.),
   /// the same format Happ/v2rayNG receive. Clash YAML is still parsed if served.
-  static const userAgent = 'Tunnely/0.2.0';
+  static const userAgent = 'Tunnely/0.3.0';
   static const _maxBytes = 5 * 1024 * 1024;
 
   static bool isSubscriptionUrl(String s) {

@@ -19,7 +19,8 @@ import java.util.concurrent.Executors
  *  - `prepare` -> Boolean: asks for VPN permission if needed; true when granted.
  *  - `start` {config, serverName}: stores the config encrypted and starts the service.
  *  - `stop`, `state` -> Map, `traffic` -> Map, `delay` {tag, url, timeoutMs, config} -> "ms|error",
- *    `logs` -> {core, events}, `clearLogs`, `validate` {config} -> String?, `coreVersion` -> String.
+ *    `logs` -> {core, events}, `clearLogs`, `validate` {config} -> String?, `coreVersion` -> String,
+ *    `appInfo` -> {version, abi}, `installApk` {path} -> "started" | "permission".
  * Events on `tunnely/vpn/state`: state maps (see [VpnStateSnapshot.toMap]).
  */
 class VpnBridge(
@@ -71,9 +72,10 @@ class VpnBridge(
                     return
                 }
                 val serverName = call.argument<String>("serverName")
+                val bypassApps = call.argument<List<String>>("bypassApps") ?: emptyList()
                 io.execute {
                     try {
-                        ConfigStore(activity).save(config, serverName)
+                        ConfigStore(activity).save(config, serverName, bypassApps)
                         activity.runOnUiThread {
                             TunnelyVpnService.start(activity)
                             result.success(null)
@@ -82,6 +84,14 @@ class VpnBridge(
                         activity.runOnUiThread { result.error("store_failed", e.javaClass.simpleName, null) }
                     }
                 }
+            }
+            "installedPackages" -> io.execute {
+                val pkgs = InstalledApps.packages(activity)
+                activity.runOnUiThread { result.success(pkgs) }
+            }
+            "installedApps" -> io.execute {
+                val apps = InstalledApps.withIcons(activity)
+                activity.runOnUiThread { result.success(apps) }
             }
             "stop" -> {
                 TunnelyVpnService.stop(activity)
@@ -120,6 +130,14 @@ class VpnBridge(
                 }
             }
             "coreVersion" -> result.success(Tunnelycore.version())
+            "appInfo" -> result.success(Updater.appInfo(activity))
+            "installApk" -> {
+                try {
+                    result.success(Updater.install(activity, call.argument<String>("path") ?: ""))
+                } catch (e: Exception) {
+                    result.error("install_failed", e.message ?: e.javaClass.simpleName, null)
+                }
+            }
             else -> result.notImplemented()
         }
     }

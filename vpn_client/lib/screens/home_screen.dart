@@ -13,6 +13,7 @@ import '../widgets/tunnel_button.dart';
 import 'import_sheet.dart';
 import 'servers_panel.dart';
 import 'settings_screen.dart';
+import 'update_widgets.dart';
 
 /// Concept C "Light in the tunnel": full-screen gradient, tunnel button,
 /// timer + speeds, and a draggable bottom panel with servers and import.
@@ -76,6 +77,7 @@ class _HomeScreenState extends ConsumerState<HomeScreen> {
               child: Column(
                 children: [
                   _TopBar(state: s),
+                  const UpdateBanner(),
                   SizedBox(height: size.height * .03),
                   TunnelButton(
                     status: s.vpn.status,
@@ -266,6 +268,20 @@ class _StatusBlock extends StatelessWidget {
             child: Text(small, textAlign: TextAlign.center, maxLines: 3,
                 style: inter(12, FontWeight.w500, color: v.status == VpnStatus.error ? Brand.danger : tc.muted)),
           ),
+        if (v.status == VpnStatus.connected) ...[
+          const SizedBox(height: 6),
+          Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(state.settings.foreignOnly ? Icons.public_rounded : Icons.vpn_lock_rounded, size: 13, color: tc.muted),
+              const SizedBox(width: 4),
+              Text(
+                state.settings.foreignOnly ? 'Только зарубежные сервисы через VPN' : 'Весь трафик через VPN',
+                style: inter(12, FontWeight.w500, color: tc.muted),
+              ),
+            ],
+          ),
+        ],
       ],
     );
   }

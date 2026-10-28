@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.content.pm.ServiceInfo
 import android.net.ConnectivityManager
 import android.net.Network
@@ -125,6 +126,18 @@ class TunnelyVpnService : VpnService() {
         }
         // Our own traffic (subscription updates, the core's outbound sockets) bypasses the tunnel.
         b.addDisallowedApplication(packageName)
+        // Apps that work directly ("foreign services only" mode / user's choice).
+        val bypass = ConfigStore(this).bypassApps().filter { it != packageName }
+        var applied = 0
+        for (pkg in bypass) {
+            try {
+                b.addDisallowedApplication(pkg)
+                applied++
+            } catch (e: PackageManager.NameNotFoundException) {
+                // Not installed or not visible: nothing to exclude.
+            }
+        }
+        event("apps without VPN: $applied of ${bypass.size}")
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) b.setMetered(false)
         b.setConfigureIntent(
             PendingIntent.getActivity(

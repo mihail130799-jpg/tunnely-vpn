@@ -8,7 +8,7 @@ import '../theme/app_theme.dart';
 
 /// Public source code location required by GPL-3.0.
 const sourceCodeUrl = 'https://github.com/mihail130799-jpg/tunnely-vpn';
-const appVersion = '0.2.0';
+const appVersion = '0.3.0';
 
 final _coreVersionProvider = FutureProvider<String>((ref) async {
   try {

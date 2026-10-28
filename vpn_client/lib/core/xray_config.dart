@@ -40,6 +40,9 @@ const ruDomainSuffixes = [
   'avito.st', 'wbbasket.ru', 'wb.ru', 'ozone.ru', 'ozon.ru',
   'sberbank.com', 'sber.ru', 'tbank.ru', 'tinkoff.ru', 'vtb.com', 'alfabank.com',
   'gosuslugi.ru', 'mos.ru', 'nalog.gov.ru', 'kaspersky.com', '1c.com',
+  'ozonusercontent.com', 'wbstatic.net', 'wbcontent.net', 'avito.ru', '2gis.com', '2gis.ru',
+  'kinopoisk.ru', 'rutube.ru', 'vkvideo.ru', 'dzen.ru', 'mts.ru', 'megafon.ru', 'beeline.ru', 't2.ru',
+  'rzd.ru', 'pochta.ru', 'hh.ru', 'rustore.ru', 'nspk.ru', 'mirpay.ru', 'sbp.nspk.ru',
 ];
 
 /// Private and special-purpose ranges that never go through the tunnel.

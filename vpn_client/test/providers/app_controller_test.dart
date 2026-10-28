@@ -22,6 +22,8 @@ class FakeVpn implements VpnPlatform {
   String? validateError;
   String? startedConfig;
   String? startedServerName;
+  List<String> startedBypass = const [];
+  List<String> installed = const ['ru.sberbankmobile', 'com.vkontakte.android', 'org.telegram.messenger'];
   int stops = 0;
   int starts = 0;
   VpnStateInfo current = VpnStateInfo.disconnected;
@@ -41,8 +43,9 @@ class FakeVpn implements VpnPlatform {
   @override
   Future<bool> prepare() async => granted;
   @override
-  Future<void> start({required String config, String? serverName}) async {
+  Future<void> start({required String config, String? serverName, List<String> bypassApps = const []}) async {
     starts++;
+    startedBypass = bypassApps;
     startedConfig = config;
     startedServerName = serverName;
   }
@@ -64,9 +67,25 @@ class FakeVpn implements VpnPlatform {
   @override
   Future<void> clearLogs() async {}
   @override
+  Future<List<String>> installedPackages() async => installed;
+  @override
+  Future<List<InstalledApp>> installedApps() async =>
+      [for (final p in installed) InstalledApp(package: p, label: p)];
+  @override
   Future<String?> validate(String config) async => validateError;
   @override
   Future<String> coreVersion() async => 'test';
+
+  String appVersion = '0.3.0';
+  final installs = <String>[];
+  bool installAllowed = true;
+  @override
+  Future<({String version, String abi})> appInfo() async => (version: appVersion, abi: 'arm64-v8a');
+  @override
+  Future<bool> installApk(String path) async {
+    installs.add(path);
+    return installAllowed;
+  }
 }
 
 void main() {
@@ -368,6 +387,39 @@ void main() {
     expect(log, contains('[import] добавлено 1'));
     expect(log, contains('разрешите Tunnely'));
     expect(log, isNot(contains(_uuid)));
+  });
+
+  test('foreign-only mode sends installed Russian apps as bypass list', () async {
+    await ctrl().importText(_vless);
+    await ctrl().connect();
+    expect(vpn.startedBypass, ['com.vkontakte.android', 'ru.sberbankmobile']);
+  });
+
+  test('global mode bypasses only manual choices', () async {
+    await ctrl().importText(_vless);
+    await ctrl().updateSettings(const AppSettings(routing: RoutingMode.global, alwaysDirectApps: {'org.telegram.messenger'}));
+    await ctrl().connect();
+    expect(vpn.startedBypass, ['org.telegram.messenger']);
+  });
+
+  test('setAppDirect records only deviations and reconnects when on', () async {
+    await ctrl().importText(_vless);
+    expect(ctrl().appIsDirect('ru.sberbankmobile'), true);
+    expect(ctrl().appIsDirect('org.telegram.messenger'), false);
+    await ctrl().setAppDirect('ru.sberbankmobile', false);
+    await ctrl().setAppDirect('org.telegram.messenger', true);
+    expect(st().settings.alwaysVpnApps, {'ru.sberbankmobile'});
+    expect(st().settings.alwaysDirectApps, {'org.telegram.messenger'});
+    await ctrl().setAppDirect('ru.sberbankmobile', true);
+    expect(st().settings.alwaysVpnApps, isEmpty, reason: 'back to automatic');
+
+    await ctrl().connect();
+    vpn.emit(VpnStateInfo(VpnStatus.connected, connectedSince: DateTime.now()));
+    await Future<void>.delayed(const Duration(milliseconds: 10));
+    final starts = vpn.starts;
+    await ctrl().setAppDirect('com.vkontakte.android', false);
+    expect(vpn.starts, starts + 1);
+    expect(vpn.startedBypass, ['org.telegram.messenger', 'ru.sberbankmobile']);
   });
 
   test('stableId is deterministic', () {
